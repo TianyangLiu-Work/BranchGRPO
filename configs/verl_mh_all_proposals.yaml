@@ -1,0 +1,28 @@
+# BranchGRPO + veRL experiment config
+# Uses veRL's core_algos (GRPO advantage + PPO clipped loss)
+# Custom MH power sampling as rollout engine
+
+training:
+  max_response_length: 2048
+  num_epochs: 3
+  lr: 1.0e-6
+  batch_size: 1
+  grad_accum: 4
+  output_dir: "./outputs_verl"
+  clip_epsilon: 0.2
+  loss_agg_mode: "token-mean"  # verl options: token-mean, seq-mean-token-sum, seq-mean-token-mean
+
+method:
+  method: "mh_all_proposals"     # standard_grpo, mh_final_only, mh_chain_only, mh_all_proposals, mh_all_proposals_dedup
+  mh_steps: 4
+  alpha: 1.5
+  span_len: 16
+  temperature: 1.0
+  num_rollouts: 8                # used for standard_grpo
+  include_rejected: true
+  include_chain_states: false
+  exact_dedup: false
+
+data:
+  train_dataset: "hendrycks/competition_math"
+  val_dataset: "hendrycks/competition_math"
