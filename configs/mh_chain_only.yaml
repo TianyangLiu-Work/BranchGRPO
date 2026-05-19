@@ -1,0 +1,52 @@
+training:
+  model_name: "Qwen/Qwen2.5-Math-7B"
+  train_prompts: 500
+  max_response_length: 2048
+  per_device_batch_size: 1
+  gradient_accumulation_steps: 4
+  num_epochs: 3
+  learning_rate: 1.0e-6
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  use_lora: true
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  lora_target_modules: [q_proj, k_proj, v_proj, o_proj]
+  clip_epsilon: 0.2
+
+method:
+  method: "mh_chain_only"
+  num_rollouts_per_prompt: 1
+  temperature: 1.0
+  top_p: 1.0
+  include_chain_states: true
+  include_rejected: false
+  exact_dedup: false
+  mh:
+    alpha: 1.5
+    mh_steps: 4
+    span_len: 16
+    proposal: "entropy_branch_span_then_continue"
+    branch_selection: "entropy_top1"
+
+data:
+  train_dataset: "hendrycks/competition_math"
+  train_subset: "all"
+  train_split: "train"
+  val_dataset: "hendrycks/competition_math"
+  val_subset: "all"
+  val_split: "test"
+
+logging:
+  use_wandb: true
+  wandb_project: "branch-grpo"
+  log_every_n_steps: 10
+  eval_every_n_epochs: 1
+  save_every_n_epochs: 1
+  output_dir: "./outputs"
+
+loss_mask: "branch_after_only"
+seed: 42
+bf16: true
