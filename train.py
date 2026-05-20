@@ -1,3 +1,5 @@
+"""BranchGRPO Training Entry Point — VeRL-powered with PyTorch generation."""
+
 import argparse
 import os
 import random
@@ -25,7 +27,7 @@ def set_seed(seed: int):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="BranchGRPO Training")
+    parser = argparse.ArgumentParser(description="BranchGRPO Training (VeRL+PyTorch)")
     parser.add_argument("--config", type=str, default=None, help="Path to YAML config")
     parser.add_argument("--method", type=str, default="mh_all_proposals",
                         choices=["standard_grpo", "low_temp_grpo", "mh_final_only",

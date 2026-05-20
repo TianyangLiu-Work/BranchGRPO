@@ -32,10 +32,10 @@ method:
     branch_selection: "entropy_top1"
 
 data:
-  train_dataset: "hendrycks/competition_math"
+  train_dataset: "EleutherAI/hendrycks_math"
   train_subset: "all"
   train_split: "train"
-  val_dataset: "hendrycks/competition_math"
+  val_dataset: "EleutherAI/hendrycks_math"
   val_subset: "all"
   val_split: "test"
 

@@ -59,10 +59,10 @@ class TrainingConfig:
 
 @dataclass
 class DataConfig:
-    train_dataset: str = "hendrycks/competition_math"
+    train_dataset: str = "EleutherAI/hendrycks_math"
     train_subset: str = "all"
     train_split: str = "train"
-    val_dataset: str = "hendrycks/competition_math"
+    val_dataset: str = "EleutherAI/hendrycks_math"
     val_subset: str = "all"
     val_split: str = "test"
     prompt_template: str = (

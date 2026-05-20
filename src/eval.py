@@ -1,3 +1,5 @@
+"""Evaluation utilities for BranchGRPO (MATH500)."""
+
 import torch
 from tqdm import tqdm
 from typing import Dict
@@ -19,9 +21,7 @@ def evaluate_on_math500(model, tokenizer, config, val_data) -> Dict:
         prompt_enc = tokenizer(prompt, return_tensors="pt").to(model.device)
 
         response_ids = _generate_rollout(
-            model,
-            tokenizer,
-            prompt_enc,
+            model, tokenizer, prompt_enc,
             temperature=config.method.temperature,
             top_p=config.method.top_p,
             max_length=config.training.max_response_length,

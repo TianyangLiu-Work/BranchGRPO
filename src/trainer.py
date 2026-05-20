@@ -1,14 +1,16 @@
+"""BranchGRPO Trainer — training loop with PyTorch rollout generation."""
+
 import torch
-from torch.utils.data import DataLoader
 from torch.optim import AdamW
-from torch.optim.lr_scheduler import CosineAnnealingLR
 from transformers import get_cosine_schedule_with_warmup
 from tqdm import tqdm
 import time
 import math
+import random
 
 try:
     import wandb
+
     _has_wandb = True
 except ImportError:
     _has_wandb = False
@@ -70,8 +72,6 @@ class BranchGRPOTrainer:
             start_time = time.time()
 
             indices = list(range(len(self.train_data)))
-            import random
-
             random.shuffle(indices)
 
             progress = tqdm(
