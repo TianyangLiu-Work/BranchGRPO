@@ -1,0 +1,13 @@
+.git
+__pycache__/
+*.pyc
+.pytest_cache/
+.cache/
+outputs/
+logs/
+wandb/
+checkpoints/
+ray_results/
+data/math/
+data/smoketest/
+

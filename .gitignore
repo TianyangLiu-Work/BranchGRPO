@@ -21,6 +21,17 @@ outputs/
 wandb/
 *.log
 logs/
+checkpoints/
+ray_results/
+.pytest_cache/
+
+# Generated datasets
+data/math/
+data/smoketest/
+*.parquet
+
+# Docker/local cache
+.cache/
 
 # IDE
 .vscode/
