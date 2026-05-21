@@ -19,6 +19,7 @@ export TRITON_CACHE_DIR=/data/shared/cache/triton
 export SGLANG_DISABLE_DEEP_GEMM=1
 export TORCH_CUDA_ARCH_LIST="9.0"
 export OMP_NUM_THREADS=8
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export MKL_NUM_THREADS=8
 
 mkdir -p ./outputs

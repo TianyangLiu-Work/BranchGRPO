@@ -49,7 +49,7 @@ def compute_grpo_loss(
         pi = group_idx[i]
         prompt_groups.setdefault(pi, []).append(i)
 
-    max_chunk = 4  # chunk size to avoid OOM from large logits tensor
+    max_chunk = 1  # process one candidate at a time to save GPU memory
 
     for pi, cand_indices in prompt_groups.items():
         prompt = prompts[pi]
@@ -87,7 +87,10 @@ def compute_grpo_loss(
                     pos = p_len + t - 1
                     tok = r_ids[t].item()
                     new_lp.append(logprobs[b, pos, tok])
-                    old_lp.append(float(old_lps_i[t]) if t < len(old_lps_i) else 0.0)
+                    val = old_lps_i[t] if t < len(old_lps_i) else 0.0
+                    if isinstance(val, (tuple, list)):
+                        val = float(val[0])
+                    old_lp.append(float(val))
                     if loss_mask == "branch_after_only" and bp is not None:
                         mask.append(1.0 if t >= bp else 0.0)
                     else:

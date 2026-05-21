@@ -27,9 +27,8 @@ class SGLangRolloutBackend:
             trust_remote_code=True,
             disable_radix_cache=False,
             disable_cuda_graph=True,
-            disable_piecewise_cuda_graph=True,
-            attention_backend="triton",   # conservative SM120 path (Step 1)
-            sampling_backend="pytorch",  # bypass flashinfer sampling
+            attention_backend="flashinfer",   # works in Docker 0.5.6+cu129
+            sampling_backend="pytorch",
             context_length=4096,
         )
 
@@ -109,9 +108,21 @@ class SGLangRolloutBackend:
         return torch.tensor(token_ids)
 
     def extract_token_logprobs(self, result: dict, output_len: int) -> Optional[List[float]]:
-        """Extract per-token logprobs from SGLang result."""
+        """Extract per-token logprobs from SGLang result.
+
+        Handles both flat [float] and [(logprob, token_id)] formats.
+        """
         meta = result.get("meta_info", {})
-        return meta.get("output_token_logprobs")
+        raw = meta.get("output_token_logprobs")
+        if raw is None:
+            return None
+        out = []
+        for x in raw:
+            if isinstance(x, (tuple, list)):
+                out.append(float(x[0]))
+            else:
+                out.append(float(x))
+        return out
 
     def get_sequence_logprob(self, result: dict, output_len: int) -> Optional[float]:
         """Extract sequence-level logprob (sum of per-token logprobs)."""
