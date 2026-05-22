@@ -207,6 +207,14 @@ def build_overrides(config: dict[str, Any], repo_root: Path = REPO_ROOT) -> list
             _get(config, "rollout.free_cache_engine", True),
         ),
         _override(
+            "actor_rollout_ref.rollout.load_format",
+            _get(config, "rollout.load_format", "dummy"),
+        ),
+        _override(
+            "actor_rollout_ref.rollout.skip_tokenizer_init",
+            _get(config, "rollout.skip_tokenizer_init", False),
+        ),
+        _override(
             "actor_rollout_ref.ref.log_prob_use_dynamic_bsz",
             _get(config, "ref.log_prob_use_dynamic_bsz", True),
         ),
@@ -254,6 +262,12 @@ def build_overrides(config: dict[str, Any], repo_root: Path = REPO_ROOT) -> list
         ),
     ]
 
+    use_legacy_worker_impl = _get(config, "trainer.use_legacy_worker_impl", None)
+    if use_legacy_worker_impl is not None:
+        overrides.append(
+            _override("trainer.use_legacy_worker_impl", use_legacy_worker_impl)
+        )
+
     val_batch_size = _get(config, "data.val_batch_size", None)
     if val_batch_size is not None:
         overrides.append(_override("data.val_batch_size", val_batch_size))
@@ -273,6 +287,11 @@ def build_overrides(config: dict[str, Any], repo_root: Path = REPO_ROOT) -> list
                 ),
             ]
         )
+        lora_merge = _get(config, "model.lora.merge", None)
+        if lora_merge is not None:
+            overrides.append(
+                _override("+actor_rollout_ref.model.lora.merge", lora_merge)
+            )
 
     attention_backend = _get(config, "rollout.attention_backend", None)
     if attention_backend:

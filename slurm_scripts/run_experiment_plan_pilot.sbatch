@@ -22,17 +22,22 @@ VAL_LIMIT=${VAL_LIMIT:-}
 TRAINER_LOGGER=${TRAINER_LOGGER:-'["console"]'}
 TOTAL_TRAINING_STEPS=${TOTAL_TRAINING_STEPS:-1}
 MAX_RESPONSE_LENGTH=${MAX_RESPONSE_LENGTH:-2048}
+STANDARD_TEMP=${STANDARD_TEMP:-0.7}
+STANDARD_TOP_P=${STANDARD_TOP_P:-0.9}
 LOW_TEMP=${LOW_TEMP:-0.7}
+LOW_TOP_P=${LOW_TOP_P:-0.9}
 MH_ALPHA=${MH_ALPHA:-1.5}
 MH_BRANCH_STRATEGY=${MH_BRANCH_STRATEGY:-topk_entropy}
 MH_TOP_LOGPROBS=${MH_TOP_LOGPROBS:-20}
 TRAIN_BATCH_SIZE=${TRAIN_BATCH_SIZE:-1}
-PPO_MINI_BATCH_SIZE=${PPO_MINI_BATCH_SIZE:-32}
+PPO_MINI_BATCH_SIZE=${PPO_MINI_BATCH_SIZE:-1}
 TOKEN_LEN_PER_GPU=${TOKEN_LEN_PER_GPU:-24576}
 AGENT_NUM_WORKERS=${AGENT_NUM_WORKERS:-8}
 STANDARD_ROLLOUT_N=${STANDARD_ROLLOUT_N:-32}
 SGLANG_MAX_NUM_BATCHED_TOKENS=${SGLANG_MAX_NUM_BATCHED_TOKENS:-32768}
 SGLANG_MAX_NUM_SEQS=${SGLANG_MAX_NUM_SEQS:-32}
+USE_LEGACY_WORKER_IMPL=${USE_LEGACY_WORKER_IMPL:-disable}
+ACTOR_PARAM_OFFLOAD=${ACTOR_PARAM_OFFLOAD:-True}
 EXTRA_HYDRA_OVERRIDES=${EXTRA_HYDRA_OVERRIDES:-}
 
 mkdir -p ./outputs/experiment_plan ./outputs/ray_tmp
@@ -83,21 +88,24 @@ docker run "${docker_base_args[@]}" "${IMAGE}" "${prepare_data_args[@]}"
 read -r -a methods <<< "${METHODS}"
 for method in "${methods[@]}"; do
   rollout_n="8"
+  top_p="${STANDARD_TOP_P}"
   extra_hydra_overrides=""
   extra_env_args=()
   case "${method}" in
     standard_grpo_g8)
-      temperature="1.0"
+      temperature="${STANDARD_TEMP}"
       ;;
     standard_grpo_g32)
-      temperature="1.0"
+      temperature="${STANDARD_TEMP}"
       rollout_n="${STANDARD_ROLLOUT_N}"
       ;;
     low_temp_grpo_g8)
       temperature="${LOW_TEMP}"
+      top_p="${LOW_TOP_P}"
       ;;
     mh_chain_only_k4)
       temperature="1.0"
+      top_p="1.0"
       rollout_n="5"
       extra_hydra_overrides="+actor_rollout_ref.rollout.agent.agent_loop_manager_class=branch_grpo.mh_agent_loop.MHPowerAgentLoopManager"
       extra_env_args+=(
@@ -111,6 +119,7 @@ for method in "${methods[@]}"; do
       ;;
     mh_all_proposals_k4)
       temperature="1.0"
+      top_p="1.0"
       rollout_n="9"
       extra_hydra_overrides="+actor_rollout_ref.rollout.agent.agent_loop_manager_class=branch_grpo.mh_agent_loop.MHPowerAgentLoopManager"
       extra_env_args+=(
@@ -124,6 +133,7 @@ for method in "${methods[@]}"; do
       ;;
     mh_all_proposals_k4_exact_dedup)
       temperature="1.0"
+      top_p="1.0"
       rollout_n="9"
       extra_hydra_overrides="+actor_rollout_ref.rollout.agent.agent_loop_manager_class=branch_grpo.mh_agent_loop.MHPowerAgentLoopManager"
       extra_env_args+=(
@@ -141,8 +151,13 @@ for method in "${methods[@]}"; do
       ;;
   esac
 
+  worker_overrides=(
+    "trainer.use_legacy_worker_impl=${USE_LEGACY_WORKER_IMPL}"
+    "actor_rollout_ref.actor.fsdp_config.param_offload=${ACTOR_PARAM_OFFLOAD}"
+  )
+
   log_path="/workspace/outputs/experiment_plan/${method}-${SLURM_JOB_ID}.log"
-  echo "RUN ${method} temperature=${temperature} rollout_n=${rollout_n} $(date)"
+  echo "RUN ${method} temperature=${temperature} top_p=${top_p} rollout_n=${rollout_n} $(date)"
   docker run "${docker_base_args[@]}" "${extra_env_args[@]}" "${IMAGE}" bash -lc "
     set -euo pipefail
     ./scripts/train_grpo_sglang.sh \
@@ -156,6 +171,7 @@ for method in "${methods[@]}"; do
       actor_rollout_ref.actor.ppo_mini_batch_size=${PPO_MINI_BATCH_SIZE} \
       actor_rollout_ref.rollout.n=${rollout_n} \
       actor_rollout_ref.rollout.temperature=${temperature} \
+      actor_rollout_ref.rollout.top_p=${top_p} \
       actor_rollout_ref.rollout.agent.num_workers=${AGENT_NUM_WORKERS} \
       data.max_response_length=${MAX_RESPONSE_LENGTH} \
       actor_rollout_ref.actor.ppo_max_token_len_per_gpu=${TOKEN_LEN_PER_GPU} \
@@ -169,6 +185,7 @@ for method in "${methods[@]}"; do
       trainer.save_freq=-1 \
       trainer.test_freq=-1 \
       'trainer.logger=${TRAINER_LOGGER}' \
+      ${worker_overrides[*]} \
       ${extra_hydra_overrides} \
       ${EXTRA_HYDRA_OVERRIDES} 2>&1 | tee ${log_path}
   "

@@ -9,7 +9,11 @@ from typing import Any, Iterable
 from .reward import extract_answer
 
 
-DEFAULT_INSTRUCTION = "Solve the problem. Keep the reasoning concise. Put the final answer in \\boxed{}."
+DEFAULT_INSTRUCTION = (
+    "Solve only this problem. Keep the reasoning concise. "
+    "Put the final exact simplified answer in \\boxed{}. "
+    "Do not start or solve a different problem."
+)
 
 
 def load_json_examples(path: str | Path) -> list[dict[str, Any]]:

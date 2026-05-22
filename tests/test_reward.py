@@ -1,4 +1,10 @@
-from branch_grpo.reward import compute_score, exact_match_reward, extract_answer, normalize_answer
+from branch_grpo.reward import (
+    compute_score,
+    exact_match_reward,
+    extract_answer,
+    normalize_answer,
+    numeric_match_reward,
+)
 
 
 def test_extract_answer_uses_last_boxed_value():
@@ -20,6 +26,10 @@ def test_compute_score_matches_verl_signature():
     assert score == 1.0
 
 
+def test_numeric_match_reward_accepts_equivalent_decimal():
+    assert numeric_match_reward(r"The answer is \boxed{0.09259259259259257}", r"\frac{5}{54}") == 1.0
+    assert compute_score(solution_str=r"\boxed{5/54}", ground_truth=r"\boxed{\frac{5}{54}}") == 1.0
+
+
 def test_normalize_answer_handles_ground_truth_dict():
     assert normalize_answer({"ground_truth": r"\boxed{42}"}) == "42"
-

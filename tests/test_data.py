@@ -10,6 +10,8 @@ def test_build_records_uses_verl_schema():
     record = records[0]
     assert record["data_source"] == "unit"
     assert record["prompt"][0]["role"] == "user"
+    assert "exact simplified answer" in record["prompt"][0]["content"]
+    assert "Do not start or solve a different problem" in record["prompt"][0]["content"]
     assert record["reward_model"]["style"] == "rule"
     assert record["reward_model"]["ground_truth"] == "4"
     assert record["extra_info"]["split"] == "train"
@@ -20,4 +22,3 @@ def test_split_examples_keeps_train_and_validation():
     train, val = split_examples(examples, train_limit=4, val_limit=2)
     assert len(train) == 4
     assert len(val) == 2
-

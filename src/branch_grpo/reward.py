@@ -7,6 +7,7 @@ matches VeRL custom rewards while staying usable in local tests.
 from __future__ import annotations
 
 import re
+from fractions import Fraction
 from typing import Any
 
 
@@ -66,6 +67,53 @@ def exact_match_reward(solution_str: Any, ground_truth: Any) -> float:
     return float(normalize_answer(solution_str) == normalize_answer(ground_truth))
 
 
+def _numeric_value(answer: Any) -> Fraction | None:
+    text = extract_answer(answer).lower().strip()
+    replacements = {
+        "\\left": "",
+        "\\right": "",
+        "\\dfrac": "\\frac",
+        "\\tfrac": "\\frac",
+        "$": "",
+        ",": "",
+        " ": "",
+        "\n": "",
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+    text = text.rstrip(".")
+
+    frac_match = re.fullmatch(r"\\frac\{([-+]?\d+(?:\.\d+)?)\}\{([-+]?\d+(?:\.\d+)?)\}", text)
+    if frac_match:
+        numerator, denominator = frac_match.groups()
+        denominator_value = Fraction(denominator)
+        if denominator_value == 0:
+            return None
+        return Fraction(numerator) / denominator_value
+
+    slash_match = re.fullmatch(r"([-+]?\d+(?:\.\d+)?)/([-+]?\d+(?:\.\d+)?)", text)
+    if slash_match:
+        numerator, denominator = slash_match.groups()
+        denominator_value = Fraction(denominator)
+        if denominator_value == 0:
+            return None
+        return Fraction(numerator) / denominator_value
+
+    decimal_match = re.fullmatch(r"[-+]?\d+(?:\.\d+)?", text)
+    if decimal_match:
+        return Fraction(text)
+
+    return None
+
+
+def numeric_match_reward(solution_str: Any, ground_truth: Any) -> float:
+    candidate = _numeric_value(solution_str)
+    target = _numeric_value(ground_truth)
+    if candidate is None or target is None:
+        return 0.0
+    return float(abs(float(candidate - target)) <= 1e-9)
+
+
 def compute_score(
     data_source: str | None = None,
     solution_str: str | None = None,
@@ -88,5 +136,4 @@ def compute_score(
     except Exception:
         pass
 
-    return exact_match_reward(candidate, target)
-
+    return max(exact_match_reward(candidate, target), numeric_match_reward(candidate, target))
