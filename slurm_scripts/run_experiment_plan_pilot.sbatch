@@ -26,10 +26,13 @@ LOW_TEMP=${LOW_TEMP:-0.7}
 MH_ALPHA=${MH_ALPHA:-1.5}
 MH_BRANCH_STRATEGY=${MH_BRANCH_STRATEGY:-topk_entropy}
 MH_TOP_LOGPROBS=${MH_TOP_LOGPROBS:-20}
-TRAIN_BATCH_SIZE=${TRAIN_BATCH_SIZE:-32}
+TRAIN_BATCH_SIZE=${TRAIN_BATCH_SIZE:-1}
 PPO_MINI_BATCH_SIZE=${PPO_MINI_BATCH_SIZE:-32}
 TOKEN_LEN_PER_GPU=${TOKEN_LEN_PER_GPU:-24576}
 AGENT_NUM_WORKERS=${AGENT_NUM_WORKERS:-8}
+STANDARD_ROLLOUT_N=${STANDARD_ROLLOUT_N:-32}
+SGLANG_MAX_NUM_BATCHED_TOKENS=${SGLANG_MAX_NUM_BATCHED_TOKENS:-32768}
+SGLANG_MAX_NUM_SEQS=${SGLANG_MAX_NUM_SEQS:-32}
 
 mkdir -p ./outputs/experiment_plan ./outputs/ray_tmp
 
@@ -84,6 +87,10 @@ for method in "${methods[@]}"; do
   case "${method}" in
     standard_grpo_g8)
       temperature="1.0"
+      ;;
+    standard_grpo_g32)
+      temperature="1.0"
+      rollout_n="${STANDARD_ROLLOUT_N}"
       ;;
     low_temp_grpo_g8)
       temperature="${LOW_TEMP}"
@@ -153,8 +160,8 @@ for method in "${methods[@]}"; do
       actor_rollout_ref.actor.ppo_max_token_len_per_gpu=${TOKEN_LEN_PER_GPU} \
       actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=${TOKEN_LEN_PER_GPU} \
       actor_rollout_ref.ref.log_prob_max_token_len_per_gpu=${TOKEN_LEN_PER_GPU} \
-      actor_rollout_ref.rollout.max_num_batched_tokens=8192 \
-      actor_rollout_ref.rollout.max_num_seqs=8 \
+      actor_rollout_ref.rollout.max_num_batched_tokens=${SGLANG_MAX_NUM_BATCHED_TOKENS} \
+      actor_rollout_ref.rollout.max_num_seqs=${SGLANG_MAX_NUM_SEQS} \
       trainer.total_epochs=1 \
       trainer.total_training_steps=${TOTAL_TRAINING_STEPS} \
       trainer.val_before_train=False \
