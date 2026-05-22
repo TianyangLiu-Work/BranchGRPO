@@ -1,0 +1,18 @@
+{
+  "data_source": "math_smoketest",
+  "prompt": [
+    {
+      "role": "user",
+      "content": "In a 8 fluid ounce bottle of Vitamin Water, there are 125 calories. How many calories would be contained in a 12 fluid ounce bottle? Express your answer in decimal form. Let's think step by step and output the final answer within \\boxed{}."
+    }
+  ],
+  "ability": "math",
+  "reward_model": {
+    "style": "rule",
+    "ground_truth": "187.5"
+  },
+  "extra_info": {
+    "split": "train",
+    "index": 0
+  }
+}

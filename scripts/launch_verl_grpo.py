@@ -191,7 +191,44 @@ def build_overrides(config: dict[str, Any], repo_root: Path = REPO_ROOT) -> list
             _override("+actor_rollout_ref.rollout.engine_kwargs.sglang.attention_backend", attention_backend)
         )
 
+    agent_num_workers = _get(config, "rollout.agent.num_workers", None)
+    if agent_num_workers is not None:
+        overrides.append(_override("actor_rollout_ref.rollout.agent.num_workers", agent_num_workers))
+
+    agent_loop_manager_class = _get(config, "rollout.agent.agent_loop_manager_class", None)
+    if agent_loop_manager_class:
+        overrides.append(
+            _override("+actor_rollout_ref.rollout.agent.agent_loop_manager_class", agent_loop_manager_class)
+        )
+
     return overrides
+
+
+def _env_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "1" if value else "0"
+    return str(value)
+
+
+def build_env(config: dict[str, Any]) -> dict[str, str]:
+    mh_config = config.get("mh") or {}
+    if not isinstance(mh_config, dict):
+        return {}
+
+    mapping = {
+        "variant": "BRANCH_GRPO_MH_VARIANT",
+        "alpha": "BRANCH_GRPO_MH_ALPHA",
+        "steps": "BRANCH_GRPO_MH_STEPS",
+        "min_prefix_tokens": "BRANCH_GRPO_MH_MIN_PREFIX_TOKENS",
+        "dedup_exact": "BRANCH_GRPO_MH_DEDUP_EXACT",
+        "seed": "BRANCH_GRPO_MH_SEED",
+    }
+    env = {}
+    for key, env_key in mapping.items():
+        value = mh_config.get(key)
+        if value is not None:
+            env[env_key] = _env_value(value)
+    return env
 
 
 def build_command(config: dict[str, Any], extra_overrides: list[str]) -> list[str]:
@@ -216,6 +253,7 @@ def main() -> None:
         return
 
     env = os.environ.copy()
+    env.update(build_env(config))
     pythonpath = str(REPO_ROOT / "src")
     env["PYTHONPATH"] = pythonpath + os.pathsep + env.get("PYTHONPATH", "")
     subprocess.run(command, cwd=REPO_ROOT, env=env, check=True)
@@ -223,4 +261,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

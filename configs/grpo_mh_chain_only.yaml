@@ -1,0 +1,93 @@
+verl:
+  entrypoint: verl.trainer.main_ppo
+
+model:
+  path: Qwen/Qwen2.5-Math-7B
+  trust_remote_code: true
+  use_remove_padding: true
+  enable_gradient_checkpointing: true
+  lora:
+    rank: 16
+    alpha: 32
+    target_modules: all-linear
+
+data:
+  train_files:
+    - data/math/train.parquet
+  val_files:
+    - data/math/test.parquet
+  train_batch_size: 64
+  val_batch_size: null
+  max_prompt_length: 1024
+  max_response_length: 2048
+  filter_overlong_prompts: true
+  truncation: error
+  prompt_key: prompt
+  reward_fn_key: data_source
+  return_raw_chat: true
+  trust_remote_code: true
+
+actor:
+  lr: 1.0e-6
+  ppo_mini_batch_size: 64
+  ppo_max_token_len_per_gpu: 24576
+  use_dynamic_bsz: true
+  use_kl_loss: true
+  kl_loss_coef: 0.001
+  kl_loss_type: low_var_kl
+  entropy_coeff: 0
+  param_offload: false
+  optimizer_offload: false
+  grad_clip: 1.0
+
+rollout:
+  backend: sglang
+  n: 5
+  temperature: 1.0
+  top_p: 1.0
+  tensor_model_parallel_size: 2
+  gpu_memory_utilization: 0.6
+  log_prob_use_dynamic_bsz: true
+  log_prob_max_token_len_per_gpu: 24576
+  max_num_batched_tokens: 8192
+  max_num_seqs: 1024
+  multi_stage_wake_up: false
+  attention_backend: flashinfer
+  free_cache_engine: true
+  agent:
+    num_workers: 8
+    agent_loop_manager_class: branch_grpo.mh_agent_loop.MHPowerAgentLoopManager
+
+mh:
+  variant: chain_only
+  alpha: 1.5
+  steps: 4
+  min_prefix_tokens: 1
+  dedup_exact: false
+
+ref:
+  param_offload: true
+  log_prob_use_dynamic_bsz: true
+  log_prob_max_token_len_per_gpu: 24576
+
+algorithm:
+  adv_estimator: grpo
+  use_kl_in_reward: false
+  norm_adv_by_std_in_grpo: true
+
+trainer:
+  project_name: branch_grpo
+  experiment_name: qwen2_5_math_7b_grpo_mh_chain_only
+  logger:
+    - console
+  nnodes: 1
+  n_gpus_per_node: 4
+  total_epochs: 3
+  save_freq: 20
+  test_freq: 5
+  val_before_train: true
+  default_local_dir: checkpoints/branch_grpo/qwen2_5_math_7b_grpo_mh_chain_only
+
+reward:
+  path: src/branch_grpo/reward.py
+  name: compute_score

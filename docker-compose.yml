@@ -3,7 +3,7 @@ services:
     build:
       context: .
       args:
-        BASE_IMAGE: ${BASE_IMAGE:-verlai/verl:app-verl0.6-transformers4.56.1-sglang0.5.2-mcore0.13.0-te2.2}
+        BASE_IMAGE: ${BASE_IMAGE:-verlai/verl:sgl059.latest}
     image: ${IMAGE:-branchgrpo:sglang-verl}
     working_dir: /workspace
     ipc: host
@@ -15,7 +15,7 @@ services:
     environment:
       HF_HOME: /root/.cache/huggingface
       PYTHONPATH: /workspace/src:/workspace
-      PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+      RAY_TMPDIR: /workspace/outputs/ray_tmp
     deploy:
       resources:
         reservations:
