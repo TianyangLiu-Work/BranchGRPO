@@ -64,6 +64,8 @@ mh:
   steps: 4
   min_prefix_tokens: 1
   dedup_exact: false
+  branch_strategy: topk_entropy
+  top_logprobs: 20
 
 ref:
   param_offload: true

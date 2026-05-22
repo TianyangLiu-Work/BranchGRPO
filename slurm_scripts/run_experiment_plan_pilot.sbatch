@@ -24,6 +24,8 @@ TOTAL_TRAINING_STEPS=${TOTAL_TRAINING_STEPS:-1}
 MAX_RESPONSE_LENGTH=${MAX_RESPONSE_LENGTH:-512}
 LOW_TEMP=${LOW_TEMP:-0.7}
 MH_ALPHA=${MH_ALPHA:-1.5}
+MH_BRANCH_STRATEGY=${MH_BRANCH_STRATEGY:-topk_entropy}
+MH_TOP_LOGPROBS=${MH_TOP_LOGPROBS:-20}
 TRAIN_BATCH_SIZE=${TRAIN_BATCH_SIZE:-8}
 PPO_MINI_BATCH_SIZE=${PPO_MINI_BATCH_SIZE:-8}
 TOKEN_LEN_PER_GPU=${TOKEN_LEN_PER_GPU:-16384}
@@ -95,6 +97,8 @@ for method in "${methods[@]}"; do
         -e BRANCH_GRPO_MH_STEPS=4
         -e BRANCH_GRPO_MH_ALPHA="${MH_ALPHA}"
         -e BRANCH_GRPO_MH_DEDUP_EXACT=0
+        -e BRANCH_GRPO_MH_BRANCH_STRATEGY="${MH_BRANCH_STRATEGY}"
+        -e BRANCH_GRPO_MH_TOP_LOGPROBS="${MH_TOP_LOGPROBS}"
       )
       ;;
     mh_all_proposals_k4)
@@ -106,6 +110,8 @@ for method in "${methods[@]}"; do
         -e BRANCH_GRPO_MH_STEPS=4
         -e BRANCH_GRPO_MH_ALPHA="${MH_ALPHA}"
         -e BRANCH_GRPO_MH_DEDUP_EXACT=0
+        -e BRANCH_GRPO_MH_BRANCH_STRATEGY="${MH_BRANCH_STRATEGY}"
+        -e BRANCH_GRPO_MH_TOP_LOGPROBS="${MH_TOP_LOGPROBS}"
       )
       ;;
     mh_all_proposals_k4_exact_dedup)
@@ -117,6 +123,8 @@ for method in "${methods[@]}"; do
         -e BRANCH_GRPO_MH_STEPS=4
         -e BRANCH_GRPO_MH_ALPHA="${MH_ALPHA}"
         -e BRANCH_GRPO_MH_DEDUP_EXACT=1
+        -e BRANCH_GRPO_MH_BRANCH_STRATEGY="${MH_BRANCH_STRATEGY}"
+        -e BRANCH_GRPO_MH_TOP_LOGPROBS="${MH_TOP_LOGPROBS}"
       )
       ;;
     *)

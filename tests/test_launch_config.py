@@ -6,7 +6,10 @@ from scripts.launch_verl_grpo import build_command, build_env, build_overrides
 def test_build_overrides_selects_sglang_and_custom_reward(tmp_path: Path):
     config = {
         "model": {"path": "Qwen/Qwen2.5-Math-7B", "lora": {"rank": 8, "alpha": 16}},
-        "data": {"train_files": ["data/train.parquet"], "val_files": ["data/test.parquet"]},
+        "data": {
+            "train_files": ["data/train.parquet"],
+            "val_files": ["data/test.parquet"],
+        },
         "rollout": {"backend": "sglang", "attention_backend": "flashinfer"},
         "reward": {"path": "src/branch_grpo/reward.py", "name": "compute_score"},
     }
@@ -15,7 +18,10 @@ def test_build_overrides_selects_sglang_and_custom_reward(tmp_path: Path):
     assert "algorithm.adv_estimator=grpo" in overrides
     assert "custom_reward_function.name=compute_score" in overrides
     assert any(item.startswith("custom_reward_function.path=") for item in overrides)
-    assert "+actor_rollout_ref.rollout.engine_kwargs.sglang.attention_backend=flashinfer" in overrides
+    assert (
+        "+actor_rollout_ref.rollout.engine_kwargs.sglang.attention_backend=flashinfer"
+        in overrides
+    )
 
 
 def test_build_command_allows_extra_hydra_overrides(tmp_path: Path):
@@ -41,7 +47,14 @@ def test_build_overrides_and_env_support_mh_agent_loop(tmp_path: Path):
                 "agent_loop_manager_class": "branch_grpo.mh_agent_loop.MHPowerAgentLoopManager",
             },
         },
-        "mh": {"variant": "all_proposals", "alpha": 1.5, "steps": 4, "dedup_exact": False},
+        "mh": {
+            "variant": "all_proposals",
+            "alpha": 1.5,
+            "steps": 4,
+            "dedup_exact": False,
+            "branch_strategy": "topk_entropy",
+            "top_logprobs": 20,
+        },
     }
     overrides = build_overrides(config, repo_root=tmp_path)
     assert "actor_rollout_ref.rollout.n=9" in overrides
@@ -56,3 +69,5 @@ def test_build_overrides_and_env_support_mh_agent_loop(tmp_path: Path):
     assert env["BRANCH_GRPO_MH_ALPHA"] == "1.5"
     assert env["BRANCH_GRPO_MH_STEPS"] == "4"
     assert env["BRANCH_GRPO_MH_DEDUP_EXACT"] == "0"
+    assert env["BRANCH_GRPO_MH_BRANCH_STRATEGY"] == "topk_entropy"
+    assert env["BRANCH_GRPO_MH_TOP_LOGPROBS"] == "20"
