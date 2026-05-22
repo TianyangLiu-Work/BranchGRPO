@@ -33,6 +33,7 @@ AGENT_NUM_WORKERS=${AGENT_NUM_WORKERS:-8}
 STANDARD_ROLLOUT_N=${STANDARD_ROLLOUT_N:-32}
 SGLANG_MAX_NUM_BATCHED_TOKENS=${SGLANG_MAX_NUM_BATCHED_TOKENS:-32768}
 SGLANG_MAX_NUM_SEQS=${SGLANG_MAX_NUM_SEQS:-32}
+EXTRA_HYDRA_OVERRIDES=${EXTRA_HYDRA_OVERRIDES:-}
 
 mkdir -p ./outputs/experiment_plan ./outputs/ray_tmp
 
@@ -168,7 +169,8 @@ for method in "${methods[@]}"; do
       trainer.save_freq=-1 \
       trainer.test_freq=-1 \
       'trainer.logger=${TRAINER_LOGGER}' \
-      ${extra_hydra_overrides} 2>&1 | tee ${log_path}
+      ${extra_hydra_overrides} \
+      ${EXTRA_HYDRA_OVERRIDES} 2>&1 | tee ${log_path}
   "
 done
 
