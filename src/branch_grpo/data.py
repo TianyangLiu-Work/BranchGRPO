@@ -9,7 +9,7 @@ from typing import Any, Iterable
 from .reward import extract_answer
 
 
-DEFAULT_INSTRUCTION = "Let's think step by step and output the final answer within \\boxed{}."
+DEFAULT_INSTRUCTION = "Solve the problem. Keep the reasoning concise. Put the final answer in \\boxed{}."
 
 
 def load_json_examples(path: str | Path) -> list[dict[str, Any]]:
@@ -81,4 +81,3 @@ def write_json_reference(path: str | Path, record: dict[str, Any]) -> None:
     with target.open("w", encoding="utf-8") as handle:
         json.dump(record, handle, ensure_ascii=False, indent=2)
         handle.write("\n")
-
