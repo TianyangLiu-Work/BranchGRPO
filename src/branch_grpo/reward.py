@@ -82,6 +82,8 @@ def _numeric_value(answer: Any) -> Fraction | None:
     for old, new in replacements.items():
         text = text.replace(old, new)
     text = text.rstrip(".")
+    if len(text) > 128:
+        return None
 
     frac_match = re.fullmatch(r"\\frac\{([-+]?\d+(?:\.\d+)?)\}\{([-+]?\d+(?:\.\d+)?)\}", text)
     if frac_match:
@@ -111,7 +113,7 @@ def numeric_match_reward(solution_str: Any, ground_truth: Any) -> float:
     target = _numeric_value(ground_truth)
     if candidate is None or target is None:
         return 0.0
-    return float(abs(float(candidate - target)) <= 1e-9)
+    return float(abs(candidate - target) <= Fraction(1, 1_000_000_000))
 
 
 def compute_score(

@@ -31,5 +31,10 @@ def test_numeric_match_reward_accepts_equivalent_decimal():
     assert compute_score(solution_str=r"\boxed{5/54}", ground_truth=r"\boxed{\frac{5}{54}}") == 1.0
 
 
+def test_numeric_match_reward_ignores_extreme_generated_numbers():
+    huge = "\\boxed{" + "9" * 200 + "}"
+    assert numeric_match_reward(huge, r"\frac{5}{54}") == 0.0
+
+
 def test_normalize_answer_handles_ground_truth_dict():
     assert normalize_answer({"ground_truth": r"\boxed{42}"}) == "42"
