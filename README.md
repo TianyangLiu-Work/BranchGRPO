@@ -1,20 +1,44 @@
 # BranchGRPO on VeRL + SGLang
 
-This repo is now a thin VeRL recipe. Training runs through VeRL's Ray PPO/GRPO
-entrypoint, with SGLang as the rollout backend and a local rule-based math
-reward.
+This repository is a VeRL recipe for math GRPO experiments with SGLang rollout
+generation. It includes a rule-based math reward and an experimental
+Metropolis-Hastings proposal-pool rollout path.
+
+## Current Status
+
+The canonical cluster entrypoint is
+`slurm_scripts/run_experiment_plan_pilot.sbatch`. Older one-off sbatch and MH
+YAML configs were removed because they bypassed the current LoRA merge,
+non-legacy worker, and actor offload settings needed by the working SGLang path.
+
+The current smoke-tested methods are:
+
+- `standard_grpo_g8`: standard GRPO, 8 rollouts per prompt.
+- `standard_grpo_g32`: standard GRPO, `STANDARD_ROLLOUT_N` rollouts per prompt
+  and default `STANDARD_ROLLOUT_N=32`.
+- `low_temp_grpo_g8`: low-temperature GRPO control, default `LOW_TEMP=0.5`.
+- `mh_chain_only_k4`: initial sample plus four MH chain states.
+- `mh_all_proposals_k4`: initial sample plus four raw MH proposals and chain
+  states.
+- `mh_all_proposals_k4_exact_dedup`: all-proposals variant with exact sequence
+  dedup before fixed-size padding.
 
 ## Layout
 
-- `configs/grpo_sglang.yaml`: default GRPO/SGLang training settings.
+- `configs/grpo_sglang.yaml`: base GRPO/SGLang training settings.
 - `src/branch_grpo/reward.py`: custom VeRL reward function.
+- `src/branch_grpo/mh_agent_loop.py`: VeRL agent loop for MH proposal rollouts.
+- `src/branch_grpo/mh_sampling.py`: MH proposal, scoring, accept/reject helpers.
 - `src/branch_grpo/data.py`: VeRL parquet schema helpers.
-- `scripts/prepare_math_data.py`: converts MATH-style JSON or Hugging Face data to VeRL parquet.
-- `scripts/launch_verl_grpo.py`: builds and launches `python -m verl.trainer.main_ppo`.
-- `Dockerfile` and `docker-compose.yml`: GPU Docker environment based on VeRL's SGLang image.
-- `slurm_scripts/run_grpo_sglang_docker.sbatch`: cluster entrypoint.
+- `scripts/prepare_math_data.py`: converts MATH-style JSON or Hugging Face data
+  to VeRL parquet.
+- `scripts/launch_verl_grpo.py`: local Hydra launcher for
+  `python -m verl.trainer.main_ppo`.
+- `scripts/train_grpo_sglang.sh`: Docker/container training wrapper.
+- `slurm_scripts/run_experiment_plan_pilot.sbatch`: Docker + Slurm experiment
+  runner.
 
-## Local smoke checks
+## Local Checks
 
 ```bash
 pip install -r requirements.txt -e .
@@ -41,42 +65,99 @@ python scripts/prepare_math_data.py --output-dir data/math
 ./scripts/train_grpo_sglang.sh
 ```
 
-For a small local data smoke run inside Docker:
-
-```bash
-python scripts/prepare_math_data.py \
-  --local-json data/smoketest_20.json \
-  --output-dir data/smoketest \
-  --train-limit 18 \
-  --val-limit 2
-python scripts/launch_verl_grpo.py \
-  --config configs/grpo_sglang.yaml \
-  data.train_files='["/workspace/data/smoketest/train.parquet"]' \
-  data.val_files='["/workspace/data/smoketest/test.parquet"]' \
-  trainer.total_epochs=1 \
-  trainer.logger='["console"]'
-```
-
-## Main Training
-
-Default config uses:
-
-- VeRL GRPO: `algorithm.adv_estimator=grpo`
-- rollout backend: `actor_rollout_ref.rollout.name=sglang`
-- custom reward: `custom_reward_function.path=/workspace/src/branch_grpo/reward.py`
-
-Run:
-
-```bash
-./scripts/train_grpo_sglang.sh
-```
-
-Override any VeRL Hydra key after the command:
+Any VeRL Hydra key can be overridden after the command:
 
 ```bash
 ./scripts/train_grpo_sglang.sh \
-  actor_rollout_ref.rollout.tensor_model_parallel_size=4 \
-  trainer.n_gpus_per_node=8 \
+  actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
+  trainer.n_gpus_per_node=1 \
   trainer.logger='["console","wandb"]'
 ```
 
+## Slurm Experiments
+
+Build the Docker image on the cluster:
+
+```bash
+BUILD_IMAGE=1 HF_CACHE=/data/shared/cache \
+  sbatch slurm_scripts/run_experiment_plan_pilot.sbatch
+```
+
+Run a short standard-GRPO effective-training smoke test:
+
+```bash
+BUILD_IMAGE=0 HF_CACHE=/data/shared/cache METHODS="standard_grpo_g32" \
+  TRAIN_LIMIT=10 VAL_LIMIT=10 TRAIN_BATCH_SIZE=4 PPO_MINI_BATCH_SIZE=1 \
+  STANDARD_ROLLOUT_N=32 MAX_RESPONSE_LENGTH=1024 \
+  SGLANG_MAX_NUM_SEQS=128 SGLANG_MAX_NUM_BATCHED_TOKENS=65536 \
+  TOKEN_LEN_PER_GPU=32768 TOTAL_TRAINING_STEPS=10 \
+  TRAINER_LOGGER='["console"]' \
+  EXTRA_HYDRA_OVERRIDES='trainer.total_epochs=5 actor_rollout_ref.actor.optim.lr=5e-6 trainer.rollout_data_dir=/workspace/outputs/rollout_smoke_standard' \
+  sbatch slurm_scripts/run_experiment_plan_pilot.sbatch
+```
+
+Run conservative MH smoke tests:
+
+```bash
+BUILD_IMAGE=0 HF_CACHE=/data/shared/cache \
+  METHODS="mh_chain_only_k4 mh_all_proposals_k4 mh_all_proposals_k4_exact_dedup" \
+  TRAIN_LIMIT=10 VAL_LIMIT=10 TRAIN_BATCH_SIZE=4 PPO_MINI_BATCH_SIZE=1 \
+  AGENT_NUM_WORKERS=4 MAX_RESPONSE_LENGTH=768 \
+  SGLANG_MAX_NUM_SEQS=64 SGLANG_MAX_NUM_BATCHED_TOKENS=32768 \
+  TOKEN_LEN_PER_GPU=16384 TOTAL_TRAINING_STEPS=20 \
+  TRAINER_LOGGER='["console","wandb"]' \
+  EXTRA_HYDRA_OVERRIDES='trainer.total_epochs=20 actor_rollout_ref.actor.optim.lr=5e-6' \
+  sbatch slurm_scripts/run_experiment_plan_pilot.sbatch
+```
+
+Multiple methods in one sbatch job run sequentially. Submit methods as separate
+jobs when failures should be isolated.
+
+## Required Runtime Settings
+
+The working SGLang + LoRA setup depends on these defaults in the Slurm runner:
+
+- `trainer.use_legacy_worker_impl=disable`
+- `+actor_rollout_ref.model.lora.merge=True` from `configs/grpo_sglang.yaml`
+- `actor_rollout_ref.actor.fsdp_config.param_offload=True`
+- `actor_rollout_ref.rollout.load_format=dummy`
+
+Use `PPO_MINI_BATCH_SIZE=1` with `rollout.n=32`: the new VeRL worker expands the
+effective mini-batch by the rollout count. For MH methods, make
+`TRAIN_BATCH_SIZE * rollout_n` divisible by `AGENT_NUM_WORKERS`; for example,
+`TRAIN_BATCH_SIZE=4` pairs with `AGENT_NUM_WORKERS=4`, while `TRAIN_BATCH_SIZE=8`
+works with the default `AGENT_NUM_WORKERS=8`.
+
+Keep `actor_rollout_ref.rollout.free_cache_engine=True` unless the memory budget
+has been revalidated. Setting it to `False` OOMed in current single-GPU tests.
+
+## W&B
+
+Enable W&B logging with:
+
+```bash
+TRAINER_LOGGER='["console","wandb"]'
+```
+
+The Slurm runner forwards `WANDB_API_KEY`, `WANDB_BASE_URL`, `WANDB_ENTITY`,
+`WANDB_MODE`, `WANDB_NAME`, and `WANDB_PROJECT` when they are present. It also
+mounts `${HOME}/.netrc` by default. VeRL metrics sync to W&B; rollout JSONL dumps
+remain local unless they are uploaded separately.
+
+## Experiment Notes
+
+Short 128-token rollouts only validate the execution path and tend to produce
+poor text. Use at least 768 or 1024 response tokens for meaningful smoke output.
+
+Observed single-GPU standard-GRPO scaling with `N=32`, `L=2048`:
+
+| `TRAIN_BATCH_SIZE` | Step Time | Throughput |
+|---:|---:|---:|
+| 4 | 141.32 s | 1023.56 tokens/s |
+| 8 | 195.36 s | 1423.99 tokens/s |
+| 16 | 316.89 s | 1803.28 tokens/s |
+| 32 | 538.40 s | 1997.25 tokens/s |
+
+`TRAIN_BATCH_SIZE=32` is fastest for full-epoch throughput. Smaller batches are
+better for quick smoke overfitting because they provide more optimizer updates
+for the same small dataset.
