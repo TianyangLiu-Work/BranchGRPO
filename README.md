@@ -5,7 +5,8 @@ This repository runs a controlled math-reasoning RL experiment:
 > Can Metropolis-Hastings power-sampling style rollout generation make GRPO
 > training more sample-efficient than ordinary policy sampling?
 
-The training target is `Qwen/Qwen2.5-Math-7B` with LoRA on MATH-style problems.
+The default training target is `Qwen/Qwen2.5-3B-Instruct` with LoRA on
+MATH-style problems.
 VeRL provides the GRPO trainer, SGLang provides rollout generation, and a local
 rule-based reward scores final math answers.
 

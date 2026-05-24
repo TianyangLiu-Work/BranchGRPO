@@ -2,7 +2,7 @@ verl:
   entrypoint: verl.trainer.main_ppo
 
 model:
-  path: Qwen/Qwen2.5-Math-7B
+  path: Qwen/Qwen2.5-3B-Instruct
   trust_remote_code: true
   use_remove_padding: true
   enable_gradient_checkpointing: true

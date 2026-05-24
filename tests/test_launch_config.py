@@ -6,7 +6,7 @@ from scripts.launch_verl_grpo import build_command, build_env, build_overrides
 def test_build_overrides_selects_sglang_and_custom_reward(tmp_path: Path):
     config = {
         "model": {
-            "path": "Qwen/Qwen2.5-Math-7B",
+            "path": "Qwen/Qwen2.5-3B-Instruct",
             "lora": {"rank": 8, "alpha": 16, "merge": True},
         },
         "data": {

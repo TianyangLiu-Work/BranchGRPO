@@ -111,7 +111,7 @@ def build_overrides(config: dict[str, Any], repo_root: Path = REPO_ROOT) -> list
         ),
         _override(
             "actor_rollout_ref.model.path",
-            _get(config, "model.path", "Qwen/Qwen2.5-Math-7B"),
+            _get(config, "model.path", "Qwen/Qwen2.5-3B-Instruct"),
         ),
         _override(
             "actor_rollout_ref.model.trust_remote_code",
