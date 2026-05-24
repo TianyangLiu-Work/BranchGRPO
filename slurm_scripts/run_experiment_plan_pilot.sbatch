@@ -21,6 +21,14 @@ TRAIN_LIMIT=${TRAIN_LIMIT:-}
 VAL_LIMIT=${VAL_LIMIT:-}
 TRAINER_LOGGER=${TRAINER_LOGGER:-'["console"]'}
 TOTAL_TRAINING_STEPS=${TOTAL_TRAINING_STEPS:-1}
+TOTAL_EPOCHS=${TOTAL_EPOCHS:-1}
+SAVE_FREQ=${SAVE_FREQ:--1}
+TEST_FREQ=${TEST_FREQ:--1}
+VAL_BEFORE_TRAIN=${VAL_BEFORE_TRAIN:-False}
+RESUME_MODE=${RESUME_MODE:-auto}
+RESUME_FROM_PATH=${RESUME_FROM_PATH:-}
+MAX_ACTOR_CKPT_TO_KEEP=${MAX_ACTOR_CKPT_TO_KEEP:-2}
+MAX_CRITIC_CKPT_TO_KEEP=${MAX_CRITIC_CKPT_TO_KEEP:-2}
 MAX_RESPONSE_LENGTH=${MAX_RESPONSE_LENGTH:-2048}
 STANDARD_TEMP=${STANDARD_TEMP:-0.7}
 STANDARD_TOP_P=${STANDARD_TOP_P:-0.9}
@@ -155,6 +163,19 @@ for method in "${methods[@]}"; do
     "trainer.use_legacy_worker_impl=${USE_LEGACY_WORKER_IMPL}"
     "actor_rollout_ref.actor.fsdp_config.param_offload=${ACTOR_PARAM_OFFLOAD}"
   )
+  trainer_overrides=(
+    "trainer.total_epochs=${TOTAL_EPOCHS}"
+    "trainer.total_training_steps=${TOTAL_TRAINING_STEPS}"
+    "trainer.val_before_train=${VAL_BEFORE_TRAIN}"
+    "trainer.save_freq=${SAVE_FREQ}"
+    "trainer.test_freq=${TEST_FREQ}"
+    "trainer.resume_mode=${RESUME_MODE}"
+    "trainer.max_actor_ckpt_to_keep=${MAX_ACTOR_CKPT_TO_KEEP}"
+    "trainer.max_critic_ckpt_to_keep=${MAX_CRITIC_CKPT_TO_KEEP}"
+  )
+  if [[ -n "${RESUME_FROM_PATH}" ]]; then
+    trainer_overrides+=("trainer.resume_from_path=${RESUME_FROM_PATH}")
+  fi
 
   log_path="/workspace/outputs/experiment_plan/${method}-${SLURM_JOB_ID}.log"
   echo "RUN ${method} temperature=${temperature} top_p=${top_p} rollout_n=${rollout_n} $(date)"
@@ -179,11 +200,7 @@ for method in "${methods[@]}"; do
       actor_rollout_ref.ref.log_prob_max_token_len_per_gpu=${TOKEN_LEN_PER_GPU} \
       actor_rollout_ref.rollout.max_num_batched_tokens=${SGLANG_MAX_NUM_BATCHED_TOKENS} \
       actor_rollout_ref.rollout.max_num_seqs=${SGLANG_MAX_NUM_SEQS} \
-      trainer.total_epochs=1 \
-      trainer.total_training_steps=${TOTAL_TRAINING_STEPS} \
-      trainer.val_before_train=False \
-      trainer.save_freq=-1 \
-      trainer.test_freq=-1 \
+      ${trainer_overrides[*]} \
       'trainer.logger=${TRAINER_LOGGER}' \
       ${worker_overrides[*]} \
       ${extra_hydra_overrides} \
