@@ -59,6 +59,7 @@ class MHPowerAgentLoop(AgentLoopBase):
         self.variant = os.environ.get("BRANCH_GRPO_MH_VARIANT", "all_proposals")
         self.alpha = _env_float("BRANCH_GRPO_MH_ALPHA", 1.5)
         self.steps = _env_int("BRANCH_GRPO_MH_STEPS", 4)
+        self.chains = max(1, _env_int("BRANCH_GRPO_MH_CHAINS", 1))
         self.min_prefix_tokens = _env_int("BRANCH_GRPO_MH_MIN_PREFIX_TOKENS", 1)
         self.dedup_exact = _env_bool("BRANCH_GRPO_MH_DEDUP_EXACT", False)
         self.branch_strategy = os.environ.get(
@@ -91,18 +92,74 @@ class MHPowerAgentLoop(AgentLoopBase):
         )
 
         start = perf_counter()
+        chain_tasks = [
+            self._run_chain(
+                prompt_ids=prompt_ids,
+                sampling_params=sampling_params,
+                images=images,
+                videos=videos,
+                chain_id=chain_id,
+                max_candidates=pool_size if self.chains == 1 else None,
+            )
+            for chain_id in range(self.chains)
+        ]
+        chain_results = await asyncio.gather(*chain_tasks)
+
+        candidates: list[MHCandidate] = []
+        num_preempted = -1
+        padding_candidate: MHCandidate | None = None
+        for chain_candidates, final_current, chain_num_preempted in chain_results:
+            candidates.extend(chain_candidates)
+            padding_candidate = final_current
+            num_preempted = max(num_preempted, chain_num_preempted)
+
+        if self.dedup_exact:
+            candidates = exact_dedup(candidates)
+
+        padding_candidate = padding_candidate or candidates[-1]
+        while len(candidates) < pool_size:
+            candidates.append(
+                replace(padding_candidate, source="pool_padding", mh_step=self.steps)
+            )
+
+        elapsed = perf_counter() - start
+        return [
+            self._to_agent_loop_output(
+                candidate,
+                prompt_ids=prompt_ids,
+                multi_modal_data=multi_modal_data,
+                elapsed=elapsed,
+                num_preempted=num_preempted,
+            )
+            for candidate in candidates[:pool_size]
+        ]
+
+    async def _run_chain(
+        self,
+        *,
+        prompt_ids: list[int],
+        sampling_params: dict[str, Any],
+        images: Any,
+        videos: Any,
+        chain_id: int,
+        max_candidates: int | None,
+    ) -> tuple[list[MHCandidate], MHCandidate, int]:
         num_preempted = -1
         initial_output = await self._generate(
             prompt_ids, sampling_params, images=images, videos=videos
         )
         num_preempted = max(num_preempted, initial_output.num_preempted or -1)
         current = self._candidate_from_output(
-            initial_output, source="initial", step=0, accepted=True
+            initial_output,
+            source="initial",
+            step=0,
+            accepted=True,
+            chain_id=chain_id,
         )
-        candidates = [current]
+        candidates = [] if self.variant == "proposals_only" else [current]
 
         for step in range(1, self.steps + 1):
-            if len(candidates) >= pool_size:
+            if max_candidates is not None and len(candidates) >= max_candidates:
                 break
 
             proposal, output_num_preempted = await self._propose(
@@ -125,6 +182,8 @@ class MHPowerAgentLoop(AgentLoopBase):
             if self.variant in {"all_proposals", "accepted_only"}:
                 if self.variant == "all_proposals" or accepted:
                     candidates.append(proposal)
+            elif self.variant == "proposals_only":
+                candidates.append(proposal)
 
             if accepted:
                 current = replace(proposal, source="chain_state", accepted=True)
@@ -147,25 +206,7 @@ class MHPowerAgentLoop(AgentLoopBase):
         if self.variant == "final_only":
             candidates = [current]
 
-        if self.dedup_exact:
-            candidates = exact_dedup(candidates)
-
-        while len(candidates) < pool_size:
-            candidates.append(
-                replace(current, source="pool_padding", mh_step=self.steps)
-            )
-
-        elapsed = perf_counter() - start
-        return [
-            self._to_agent_loop_output(
-                candidate,
-                prompt_ids=prompt_ids,
-                multi_modal_data=multi_modal_data,
-                elapsed=elapsed,
-                num_preempted=num_preempted,
-            )
-            for candidate in candidates[:pool_size]
-        ]
+        return candidates, current, num_preempted
 
     async def run(self, sampling_params: dict[str, Any], **kwargs) -> AgentLoopOutput:
         return (await self.run_pool(sampling_params, pool_size=1, **kwargs))[0]
@@ -212,6 +253,7 @@ class MHPowerAgentLoop(AgentLoopBase):
             source="proposal",
             mh_step=step,
             accepted=False,
+            chain_id=current.chain_id,
             branch_point=branch_point,
             top_logprobs=proposal_top_logprobs,
             branch_entropy=branch_entropy,
@@ -383,7 +425,13 @@ class MHPowerAgentLoop(AgentLoopBase):
         )
 
     def _candidate_from_output(
-        self, output: TokenOutput, *, source: str, step: int, accepted: bool
+        self,
+        output: TokenOutput,
+        *,
+        source: str,
+        step: int,
+        accepted: bool,
+        chain_id: int = 0,
     ) -> MHCandidate:
         response_ids = output.token_ids[: self.response_length]
         return MHCandidate(
@@ -392,6 +440,7 @@ class MHPowerAgentLoop(AgentLoopBase):
             source=source,
             mh_step=step,
             accepted=accepted,
+            chain_id=chain_id,
             top_logprobs=self._top_logprobs(output, len(response_ids)),
             branch_strategy=self.branch_strategy,
         )
@@ -451,6 +500,7 @@ class MHPowerAgentLoop(AgentLoopBase):
             "turn_scores": [],
             "tool_rewards": [],
             "mh_source": candidate.source,
+            "mh_chain_id": candidate.chain_id,
             "mh_step": candidate.mh_step,
             "mh_accepted": candidate.accepted,
             "mh_accept_logprob": candidate.accept_logprob,

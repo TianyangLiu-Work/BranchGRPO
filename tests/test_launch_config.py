@@ -66,6 +66,7 @@ def test_build_overrides_and_env_support_mh_agent_loop(tmp_path: Path):
             "variant": "all_proposals",
             "alpha": 1.5,
             "steps": 4,
+            "chains": 32,
             "dedup_exact": False,
             "branch_strategy": "topk_entropy",
             "top_logprobs": 20,
@@ -83,6 +84,7 @@ def test_build_overrides_and_env_support_mh_agent_loop(tmp_path: Path):
     assert env["BRANCH_GRPO_MH_VARIANT"] == "all_proposals"
     assert env["BRANCH_GRPO_MH_ALPHA"] == "1.5"
     assert env["BRANCH_GRPO_MH_STEPS"] == "4"
+    assert env["BRANCH_GRPO_MH_CHAINS"] == "32"
     assert env["BRANCH_GRPO_MH_DEDUP_EXACT"] == "0"
     assert env["BRANCH_GRPO_MH_BRANCH_STRATEGY"] == "topk_entropy"
     assert env["BRANCH_GRPO_MH_TOP_LOGPROBS"] == "20"

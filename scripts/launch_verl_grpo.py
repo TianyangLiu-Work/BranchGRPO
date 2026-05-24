@@ -337,6 +337,7 @@ def build_env(config: dict[str, Any]) -> dict[str, str]:
         "variant": "BRANCH_GRPO_MH_VARIANT",
         "alpha": "BRANCH_GRPO_MH_ALPHA",
         "steps": "BRANCH_GRPO_MH_STEPS",
+        "chains": "BRANCH_GRPO_MH_CHAINS",
         "min_prefix_tokens": "BRANCH_GRPO_MH_MIN_PREFIX_TOKENS",
         "dedup_exact": "BRANCH_GRPO_MH_DEDUP_EXACT",
         "branch_strategy": "BRANCH_GRPO_MH_BRANCH_STRATEGY",

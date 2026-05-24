@@ -42,6 +42,7 @@ PPO_MINI_BATCH_SIZE=${PPO_MINI_BATCH_SIZE:-1}
 TOKEN_LEN_PER_GPU=${TOKEN_LEN_PER_GPU:-24576}
 AGENT_NUM_WORKERS=${AGENT_NUM_WORKERS:-8}
 STANDARD_ROLLOUT_N=${STANDARD_ROLLOUT_N:-32}
+LARGE_STANDARD_ROLLOUT_N=${LARGE_STANDARD_ROLLOUT_N:-256}
 SGLANG_MAX_NUM_BATCHED_TOKENS=${SGLANG_MAX_NUM_BATCHED_TOKENS:-32768}
 SGLANG_MAX_NUM_SEQS=${SGLANG_MAX_NUM_SEQS:-32}
 USE_LEGACY_WORKER_IMPL=${USE_LEGACY_WORKER_IMPL:-disable}
@@ -111,6 +112,10 @@ for method in "${methods[@]}"; do
       temperature="${STANDARD_TEMP}"
       rollout_n="${STANDARD_ROLLOUT_N}"
       ;;
+    standard_grpo_g256)
+      temperature="${STANDARD_TEMP}"
+      rollout_n="${LARGE_STANDARD_ROLLOUT_N}"
+      ;;
     low_temp_grpo_g8)
       temperature="${LOW_TEMP}"
       top_p="${LOW_TOP_P}"
@@ -153,6 +158,21 @@ for method in "${methods[@]}"; do
         -e BRANCH_GRPO_MH_STEPS=4
         -e BRANCH_GRPO_MH_ALPHA="${MH_ALPHA}"
         -e BRANCH_GRPO_MH_DEDUP_EXACT=1
+        -e BRANCH_GRPO_MH_BRANCH_STRATEGY="${MH_BRANCH_STRATEGY}"
+        -e BRANCH_GRPO_MH_TOP_LOGPROBS="${MH_TOP_LOGPROBS}"
+      )
+      ;;
+    mh_proposals_only_c32_k8)
+      temperature="1.0"
+      top_p="1.0"
+      rollout_n="256"
+      extra_hydra_overrides="+actor_rollout_ref.rollout.agent.agent_loop_manager_class=branch_grpo.mh_agent_loop.MHPowerAgentLoopManager"
+      extra_env_args+=(
+        -e BRANCH_GRPO_MH_VARIANT=proposals_only
+        -e BRANCH_GRPO_MH_STEPS=8
+        -e BRANCH_GRPO_MH_CHAINS=32
+        -e BRANCH_GRPO_MH_ALPHA="${MH_ALPHA}"
+        -e BRANCH_GRPO_MH_DEDUP_EXACT=0
         -e BRANCH_GRPO_MH_BRANCH_STRATEGY="${MH_BRANCH_STRATEGY}"
         -e BRANCH_GRPO_MH_TOP_LOGPROBS="${MH_TOP_LOGPROBS}"
       )

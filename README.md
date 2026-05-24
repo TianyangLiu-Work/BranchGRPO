@@ -38,6 +38,9 @@ The experiment compares these rollout generators:
   MH sampling semantics.
 - **MH all-proposals**: score accepted and rejected complete proposals together
   as a GRPO candidate pool. This is the main experimental method.
+- **MH proposals-only**: run one or more MH chains but feed only raw proposals
+  into GRPO. The chain states are used internally for accept/reject transitions
+  and are not included in the training group.
 - **MH all-proposals + exact dedup**: same as all-proposals, but exact duplicate
   token sequences are collapsed before fixed-size padding.
 
@@ -45,6 +48,10 @@ The all-proposals variant should be interpreted as **proposal-pool GRPO**, not
 as exact on-policy GRPO and not as exact sampling from the MH power distribution.
 Rejected proposals are deliberately included as verifier-scored counterfactuals;
 that is the research question being tested.
+
+For proposals-only MH, `C` is the number of independent MH chains per prompt and
+`K` is the number of MH steps per chain. The method
+`mh_proposals_only_c32_k8` returns `C*K = 32*8 = 256` raw proposals per prompt.
 
 The main measurements are:
 
@@ -62,19 +69,24 @@ The canonical cluster entrypoint is
 YAML configs were removed because they bypassed the current LoRA merge,
 non-legacy worker, and actor offload settings needed by the working SGLang path.
 
-The current smoke-tested methods are:
+The current configured methods are:
 
 - `standard_grpo_g8`: standard GRPO, 8 rollouts per prompt.
 - `standard_grpo_g9`: standard GRPO, 9 rollouts per prompt. This is the
   rollout-count matched baseline for `mh_all_proposals_k4`.
 - `standard_grpo_g32`: standard GRPO, `STANDARD_ROLLOUT_N` rollouts per prompt
   and default `STANDARD_ROLLOUT_N=32`.
+- `standard_grpo_g256`: standard GRPO, `LARGE_STANDARD_ROLLOUT_N` rollouts per
+  prompt and default `LARGE_STANDARD_ROLLOUT_N=256`. This is the group-size
+  matched baseline for `mh_proposals_only_c32_k8`.
 - `low_temp_grpo_g8`: low-temperature GRPO control, default `LOW_TEMP=0.5`.
 - `mh_chain_only_k4`: initial sample plus four MH chain states.
 - `mh_all_proposals_k4`: initial sample plus four raw MH proposals and chain
   states.
 - `mh_all_proposals_k4_exact_dedup`: all-proposals variant with exact sequence
   dedup before fixed-size padding.
+- `mh_proposals_only_c32_k8`: 32 independent MH chains per prompt, 8 proposal
+  steps per chain, and only the 256 raw proposals are returned to GRPO.
 
 ## Layout
 

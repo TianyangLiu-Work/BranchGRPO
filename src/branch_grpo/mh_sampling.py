@@ -15,6 +15,7 @@ class MHCandidate:
     source: str
     mh_step: int
     accepted: bool
+    chain_id: int = 0
     accept_logprob: float | None = None
     branch_point: int | None = None
     top_logprobs: list[list[float]] | None = None
