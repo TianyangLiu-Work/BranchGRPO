@@ -103,6 +103,10 @@ for method in "${methods[@]}"; do
     standard_grpo_g8)
       temperature="${STANDARD_TEMP}"
       ;;
+    standard_grpo_g9)
+      temperature="${STANDARD_TEMP}"
+      rollout_n="9"
+      ;;
     standard_grpo_g32)
       temperature="${STANDARD_TEMP}"
       rollout_n="${STANDARD_ROLLOUT_N}"

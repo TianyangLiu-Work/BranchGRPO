@@ -65,6 +65,8 @@ non-legacy worker, and actor offload settings needed by the working SGLang path.
 The current smoke-tested methods are:
 
 - `standard_grpo_g8`: standard GRPO, 8 rollouts per prompt.
+- `standard_grpo_g9`: standard GRPO, 9 rollouts per prompt. This is the
+  rollout-count matched baseline for `mh_all_proposals_k4`.
 - `standard_grpo_g32`: standard GRPO, `STANDARD_ROLLOUT_N` rollouts per prompt
   and default `STANDARD_ROLLOUT_N=32`.
 - `low_temp_grpo_g8`: low-temperature GRPO control, default `LOW_TEMP=0.5`.
