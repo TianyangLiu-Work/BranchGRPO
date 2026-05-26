@@ -177,6 +177,36 @@ for method in "${methods[@]}"; do
         -e BRANCH_GRPO_MH_TOP_LOGPROBS="${MH_TOP_LOGPROBS}"
       )
       ;;
+    mh_proposals_only_c16_k8)
+      temperature="1.0"
+      top_p="1.0"
+      rollout_n="128"
+      extra_hydra_overrides="+actor_rollout_ref.rollout.agent.agent_loop_manager_class=branch_grpo.mh_agent_loop.MHPowerAgentLoopManager"
+      extra_env_args+=(
+        -e BRANCH_GRPO_MH_VARIANT=proposals_only
+        -e BRANCH_GRPO_MH_STEPS=8
+        -e BRANCH_GRPO_MH_CHAINS=16
+        -e BRANCH_GRPO_MH_ALPHA="${MH_ALPHA}"
+        -e BRANCH_GRPO_MH_DEDUP_EXACT=0
+        -e BRANCH_GRPO_MH_BRANCH_STRATEGY="${MH_BRANCH_STRATEGY}"
+        -e BRANCH_GRPO_MH_TOP_LOGPROBS="${MH_TOP_LOGPROBS}"
+      )
+      ;;
+    mh_proposals_only_c32_k4)
+      temperature="1.0"
+      top_p="1.0"
+      rollout_n="128"
+      extra_hydra_overrides="+actor_rollout_ref.rollout.agent.agent_loop_manager_class=branch_grpo.mh_agent_loop.MHPowerAgentLoopManager"
+      extra_env_args+=(
+        -e BRANCH_GRPO_MH_VARIANT=proposals_only
+        -e BRANCH_GRPO_MH_STEPS=4
+        -e BRANCH_GRPO_MH_CHAINS=32
+        -e BRANCH_GRPO_MH_ALPHA="${MH_ALPHA}"
+        -e BRANCH_GRPO_MH_DEDUP_EXACT=0
+        -e BRANCH_GRPO_MH_BRANCH_STRATEGY="${MH_BRANCH_STRATEGY}"
+        -e BRANCH_GRPO_MH_TOP_LOGPROBS="${MH_TOP_LOGPROBS}"
+      )
+      ;;
     *)
       echo "Unsupported method for current code path: ${method}" >&2
       exit 64
