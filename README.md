@@ -77,6 +77,9 @@ The current configured methods are:
   rollout-count matched baseline for `mh_all_proposals_k4`.
 - `standard_grpo_g32`: standard GRPO, `STANDARD_ROLLOUT_N` rollouts per prompt
   and default `STANDARD_ROLLOUT_N=32`.
+- `standard_grpo_g128`: standard GRPO, `MATCHED_STANDARD_ROLLOUT_N` rollouts
+  per prompt and default `MATCHED_STANDARD_ROLLOUT_N=128`. This is the
+  group-size matched baseline for `mh_proposals_only_c32_k4`.
 - `standard_grpo_g256`: standard GRPO, `LARGE_STANDARD_ROLLOUT_N` rollouts per
   prompt and default `LARGE_STANDARD_ROLLOUT_N=256`. This is the group-size
   matched baseline for `mh_proposals_only_c32_k8`.
@@ -88,6 +91,8 @@ The current configured methods are:
   dedup before fixed-size padding.
 - `mh_proposals_only_c32_k8`: 32 independent MH chains per prompt, 8 proposal
   steps per chain, and only the 256 raw proposals are returned to GRPO.
+- `mh_proposals_only_c32_k4`: 32 independent MH chains per prompt, 4 proposal
+  steps per chain, and only the 128 raw proposals are returned to GRPO.
 
 ## Layout
 

@@ -42,12 +42,14 @@ PPO_MINI_BATCH_SIZE=${PPO_MINI_BATCH_SIZE:-1}
 TOKEN_LEN_PER_GPU=${TOKEN_LEN_PER_GPU:-24576}
 AGENT_NUM_WORKERS=${AGENT_NUM_WORKERS:-8}
 STANDARD_ROLLOUT_N=${STANDARD_ROLLOUT_N:-32}
+MATCHED_STANDARD_ROLLOUT_N=${MATCHED_STANDARD_ROLLOUT_N:-128}
 LARGE_STANDARD_ROLLOUT_N=${LARGE_STANDARD_ROLLOUT_N:-256}
 SGLANG_MAX_NUM_BATCHED_TOKENS=${SGLANG_MAX_NUM_BATCHED_TOKENS:-32768}
 SGLANG_MAX_NUM_SEQS=${SGLANG_MAX_NUM_SEQS:-32}
 USE_LEGACY_WORKER_IMPL=${USE_LEGACY_WORKER_IMPL:-disable}
 ACTOR_PARAM_OFFLOAD=${ACTOR_PARAM_OFFLOAD:-True}
 EXTRA_HYDRA_OVERRIDES=${EXTRA_HYDRA_OVERRIDES:-}
+RUN_SUFFIX=${RUN_SUFFIX:-}
 
 mkdir -p ./outputs/experiment_plan ./outputs/ray_tmp
 
@@ -96,6 +98,11 @@ docker run "${docker_base_args[@]}" "${IMAGE}" "${prepare_data_args[@]}"
 
 read -r -a methods <<< "${METHODS}"
 for method in "${methods[@]}"; do
+  experiment_name="${method}"
+  if [[ -n "${RUN_SUFFIX}" ]]; then
+    experiment_name="${method}_${RUN_SUFFIX}"
+  fi
+
   rollout_n="8"
   top_p="${STANDARD_TOP_P}"
   extra_hydra_overrides=""
@@ -111,6 +118,10 @@ for method in "${methods[@]}"; do
     standard_grpo_g32)
       temperature="${STANDARD_TEMP}"
       rollout_n="${STANDARD_ROLLOUT_N}"
+      ;;
+    standard_grpo_g128)
+      temperature="${STANDARD_TEMP}"
+      rollout_n="${MATCHED_STANDARD_ROLLOUT_N}"
       ;;
     standard_grpo_g256)
       temperature="${STANDARD_TEMP}"
@@ -231,13 +242,13 @@ for method in "${methods[@]}"; do
     trainer_overrides+=("trainer.resume_from_path=${RESUME_FROM_PATH}")
   fi
 
-  log_path="/workspace/outputs/experiment_plan/${method}-${SLURM_JOB_ID}.log"
+  log_path="/workspace/outputs/experiment_plan/${experiment_name}-${SLURM_JOB_ID}.log"
   echo "RUN ${method} temperature=${temperature} top_p=${top_p} rollout_n=${rollout_n} $(date)"
   docker run "${docker_base_args[@]}" "${extra_env_args[@]}" "${IMAGE}" bash -lc "
     set -euo pipefail
     ./scripts/train_grpo_sglang.sh \
-      trainer.experiment_name=${method} \
-      trainer.default_local_dir=/workspace/checkpoints/branch_grpo/${method} \
+      trainer.experiment_name=${experiment_name} \
+      trainer.default_local_dir=/workspace/checkpoints/branch_grpo/${experiment_name} \
       trainer.n_gpus_per_node=1 \
       actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
       data.train_files=[/workspace/${DATA_DIR}/train.parquet] \
