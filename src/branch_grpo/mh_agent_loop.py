@@ -199,7 +199,7 @@ class MHPowerAgentLoop(AgentLoopBase):
 
             if (
                 self.variant in {"all_proposals", "chain_only"}
-                and len(candidates) < pool_size
+                and (max_candidates is None or len(candidates) < max_candidates)
             ):
                 candidates.append(current)
 
