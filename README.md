@@ -160,11 +160,15 @@ source scripts/cluster_runtime_env.sh
 pip install -e .
 ```
 
-If Flash Attention 2 is needed for a run, install it after torch is already
-present:
+The default config keeps VeRL remove-padding enabled, which needs Flash
+Attention 2. Install it after torch is already present, and keep the pip temp
+dir on `/data2` so the prebuilt wheel can be cached without cross-device rename
+errors:
 
 ```bash
-pip install flash-attn==2.8.3 --no-build-isolation
+mkdir -p /data2/fyyang/tmp /data2/fyyang/.cache/pip
+TMPDIR=/data2/fyyang/tmp PIP_CACHE_DIR=/data2/fyyang/.cache/pip \
+  pip install flash-attn==2.8.3 --no-build-isolation
 ```
 
 `scripts/cluster_runtime_env.sh` also moves Hugging Face, Triton, FlashInfer,

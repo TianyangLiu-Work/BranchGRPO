@@ -36,6 +36,7 @@ export HF_HOME="${CACHE_ROOT}/.cache/huggingface"
 export HF_HUB_CACHE="${HF_HOME}/hub"
 export HF_DATASETS_CACHE="${HF_HOME}/datasets"
 export XDG_CACHE_HOME="${CACHE_ROOT}/.cache"
+export PIP_CACHE_DIR="${CACHE_ROOT}/.cache/pip"
 export TORCH_HOME="${CACHE_ROOT}/.cache/torch"
 export TRITON_CACHE_DIR="${CACHE_ROOT}/.triton/cache"
 export TORCHINDUCTOR_CACHE_DIR="${CACHE_ROOT}/.cache/torchinductor"
@@ -49,7 +50,7 @@ export TOKENIZERS_PARALLELISM="${TOKENIZERS_PARALLELISM:-false}"
 
 mkdir -p \
   "${HF_HOME}" "${HF_HUB_CACHE}" "${HF_DATASETS_CACHE}" \
-  "${XDG_CACHE_HOME}" "${TORCH_HOME}" "${TRITON_CACHE_DIR}" \
+  "${XDG_CACHE_HOME}" "${PIP_CACHE_DIR}" "${TORCH_HOME}" "${TRITON_CACHE_DIR}" \
   "${TORCHINDUCTOR_CACHE_DIR}" "${CUDA_CACHE_PATH}" \
   "${FLASHINFER_CUBIN_DIR}" "${RAY_TMPDIR}" "${TMPDIR}"
 
