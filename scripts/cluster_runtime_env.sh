@@ -41,6 +41,9 @@ export TORCH_HOME="${CACHE_ROOT}/.cache/torch"
 export TRITON_CACHE_DIR="${CACHE_ROOT}/.triton/cache"
 export TORCHINDUCTOR_CACHE_DIR="${CACHE_ROOT}/.cache/torchinductor"
 export CUDA_CACHE_PATH="${CACHE_ROOT}/.cache/nv"
+export WANDB_DIR="${CACHE_ROOT}/wandb"
+export WANDB_CACHE_DIR="${CACHE_ROOT}/.cache/wandb"
+export WANDB_CONFIG_DIR="${CACHE_ROOT}/.config/wandb"
 export FLASHINFER_WORKSPACE_BASE="${CACHE_ROOT}"
 export FLASHINFER_CUBIN_DIR="${CACHE_ROOT}/.cache/flashinfer/cubins"
 export FLASHINFER_CUDA_ARCH_LIST="${FLASHINFER_CUDA_ARCH_LIST:-8.0}"
@@ -52,6 +55,7 @@ mkdir -p \
   "${HF_HOME}" "${HF_HUB_CACHE}" "${HF_DATASETS_CACHE}" \
   "${XDG_CACHE_HOME}" "${PIP_CACHE_DIR}" "${TORCH_HOME}" "${TRITON_CACHE_DIR}" \
   "${TORCHINDUCTOR_CACHE_DIR}" "${CUDA_CACHE_PATH}" \
+  "${WANDB_DIR}" "${WANDB_CACHE_DIR}" "${WANDB_CONFIG_DIR}" \
   "${FLASHINFER_CUBIN_DIR}" "${RAY_TMPDIR}" "${TMPDIR}"
 
 LD_PARTS=()
