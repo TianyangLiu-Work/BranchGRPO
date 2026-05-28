@@ -32,6 +32,7 @@ dependencies:
       - peft==0.18.1
       - accelerate==1.13.0
       - datasets==4.8.4
+      - cachetools==6.2.4
       - pandas==3.0.1
       - pyarrow==23.0.1
       - numpy==2.4.6
