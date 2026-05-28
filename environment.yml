@@ -25,7 +25,6 @@ dependencies:
       - flashinfer-python==0.6.3
       - flashinfer-cubin==0.6.3
       - sgl-kernel==0.3.21
-      - flash-attn==2.8.3
       - cuda-python==12.9.0
       - cuda-bindings==12.9.6
       - ray==2.54.0

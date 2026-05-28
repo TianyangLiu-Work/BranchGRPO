@@ -160,6 +160,13 @@ source scripts/cluster_runtime_env.sh
 pip install -e .
 ```
 
+If Flash Attention 2 is needed for a run, install it after torch is already
+present:
+
+```bash
+pip install flash-attn==2.8.3 --no-build-isolation
+```
+
 `scripts/cluster_runtime_env.sh` also moves Hugging Face, Triton, FlashInfer,
 TorchInductor, and Ray caches off `/home`, and forces the conda CUDA runtime to
 win over system CUDA libraries for SGLang subprocesses.
