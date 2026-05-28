@@ -1,0 +1,40 @@
+# Linux/A100 cluster environment for BranchGRPO + VeRL + SGLang.
+# Prefer creating this under /data2 on uclaa100 because /home is full there:
+#   CONDA_PKGS_DIRS=/data2/fyyang/conda_pkgs \
+#     conda env create -p /data2/fyyang/conda_envs/branch-grpo-verl -f environment.yml
+name: branch-grpo-verl
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - git
+  - git-lfs
+  - cmake
+  - ninja
+  - packaging
+  - setuptools
+  - wheel
+  - pip:
+      - torch==2.9.1
+      - torchvision==0.24.1
+      - torchaudio==2.9.1
+      - triton==3.5.1
+      - verl==0.7.1
+      - sglang==0.5.9
+      - flashinfer-python==0.6.3
+      - flashinfer-cubin==0.6.3
+      - sgl-kernel==0.3.21
+      - flash-attn==2.8.3
+      - cuda-python==12.9.0
+      - cuda-bindings==12.9.6
+      - ray==2.54.0
+      - transformers==4.57.1
+      - peft==0.18.1
+      - accelerate==1.13.0
+      - datasets==4.8.4
+      - pandas==3.0.1
+      - pyarrow==23.0.1
+      - numpy==1.26.4
+      - pyyaml>=6.0
+      - pytest>=8.0.0

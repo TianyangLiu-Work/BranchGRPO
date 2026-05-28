@@ -145,6 +145,25 @@ Any VeRL Hydra key can be overridden after the command:
   trainer.logger='["console","wandb"]'
 ```
 
+## Conda Cluster Environment
+
+Use `environment.yml` when running directly on uclaa100 without Docker. Keep the
+environment and package cache on `/data2` because `/home` can be full:
+
+```bash
+cd /data2/fyyang/tyliugh/BranchGRPO
+CONDA_PKGS_DIRS=/data2/fyyang/conda_pkgs \
+  conda env create -p /data2/fyyang/conda_envs/branch-grpo-verl \
+  -f environment.yml
+conda activate /data2/fyyang/conda_envs/branch-grpo-verl
+source scripts/cluster_runtime_env.sh
+pip install -e .
+```
+
+`scripts/cluster_runtime_env.sh` also moves Hugging Face, Triton, FlashInfer,
+TorchInductor, and Ray caches off `/home`, and forces the conda CUDA runtime to
+win over system CUDA libraries for SGLang subprocesses.
+
 ## Slurm Experiments
 
 Build the Docker image on the cluster:
