@@ -52,3 +52,76 @@ def test_all_proposals_chain_respects_max_candidates():
     )
 
     assert len(candidates) == 9
+
+
+def test_agent_loop_output_includes_mh_diagnostics():
+    loop = object.__new__(MHPowerAgentLoop)
+    loop.response_length = 10
+    loop.variant = "all_proposals"
+    loop.alpha = 2.0
+    loop.top_logprobs = 20
+
+    candidate = MHCandidate(
+        response_ids=[1, 2, 3, 4],
+        logprobs=[-0.1, -0.2, -0.3, -0.4],
+        source="proposal",
+        mh_step=1,
+        accepted=False,
+        chain_id=0,
+        accept_logprob=-0.7,
+        branch_point=2,
+        branch_entropy=1.2,
+        branch_strategy="topk_entropy",
+    )
+
+    output = loop._to_agent_loop_output(
+        candidate,
+        prompt_ids=[0],
+        multi_modal_data={},
+        elapsed=0.1,
+        num_preempted=-1,
+    )
+
+    assert output.extra_fields["mh_source"] == "proposal"
+    assert output.extra_fields["mh_accepted"] is False
+    assert output.extra_fields["mh_step"] == 1
+    assert output.extra_fields["mh_branch_point"] == 2
+    assert output.extra_fields["mh_accept_logprob"] == -0.7
+    assert output.extra_fields["mh_branch_entropy"] == 1.2
+    assert output.extra_fields["mh_sequence_logprob"] == -1.0
+    assert output.extra_fields["mh_response_length"] == 4
+    assert output.extra_fields["mh_avg_token_logprob"] == -0.25
+    assert "mh_suffix_length" not in output.extra_fields
+    assert "mh_behavior_correction_exact" not in output.extra_fields
+
+
+def test_agent_loop_output_mh_diagnostics_are_validation_safe_when_missing():
+    loop = object.__new__(MHPowerAgentLoop)
+    loop.response_length = 10
+    loop.variant = "all_proposals"
+    loop.alpha = 2.0
+    loop.top_logprobs = 20
+
+    candidate = MHCandidate(
+        response_ids=[1, 2, 3, 4],
+        logprobs=[-0.1, -0.2, -0.3, -0.4],
+        source="initial",
+        mh_step=0,
+        accepted=True,
+    )
+
+    output = loop._to_agent_loop_output(
+        candidate,
+        prompt_ids=[0],
+        multi_modal_data={},
+        elapsed=0.1,
+        num_preempted=-1,
+    )
+
+    mh_fields = {
+        key: value for key, value in output.extra_fields.items() if key.startswith("mh_")
+    }
+    assert all(value is not None for value in mh_fields.values())
+    assert mh_fields["mh_accept_logprob"] == 0.0
+    assert mh_fields["mh_branch_point"] == -1.0
+    assert mh_fields["mh_branch_entropy"] == 0.0

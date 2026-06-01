@@ -1,0 +1,132 @@
+verl:
+  entrypoint: verl.trainer.main_ppo
+
+model:
+  path: Qwen/Qwen3-8B
+  trust_remote_code: true
+  use_remove_padding: true
+  enable_gradient_checkpointing: true
+  override_config:
+    attn_implementation: flash_attention_2
+
+data:
+  train_files:
+    - /data2/fyyang/branch-grpo-old/data/math__combined_54.4k.parquet
+  val_files:
+    - /data2/fyyang/branch-grpo-old/data/math__aime_repeated_8x_240.parquet
+  train_batch_size: 4
+  gen_batch_size: 4
+  val_batch_size: null
+  seed: 1
+  max_prompt_length: 1024
+  max_response_length: 10000
+  filter_overlong_prompts: true
+  truncation: left
+  prompt_key: prompt
+  reward_fn_key: data_source
+  return_raw_chat: true
+  trust_remote_code: true
+  apply_chat_template_kwargs:
+    enable_thinking: true
+
+actor:
+  lr: 1.0e-6
+  lr_warmup_steps: 10
+  weight_decay: 0.1
+  ppo_mini_batch_size: 4
+  ppo_micro_batch_size_per_gpu: 1
+  ppo_max_token_len_per_gpu: 11024
+  use_dynamic_bsz: true
+  use_kl_loss: false
+  clip_ratio_low: 0.2
+  clip_ratio_high: 0.28
+  clip_ratio_c: 10.0
+  loss_agg_mode: token-mean
+  entropy_coeff: 0.0
+  grad_clip: 1.0
+  param_offload: true
+  optimizer_offload: true
+  fsdp_size: -1
+  model_dtype: bfloat16
+  ulysses_sequence_parallel_size: 1
+
+rollout:
+  backend: sglang
+  n: 9
+  calculate_log_probs: true
+  temperature: 1.0
+  top_p: 1.0
+  top_k: -1
+  repetition_penalty: 1.0
+  tensor_model_parallel_size: 1
+  pipeline_model_parallel_size: 1
+  data_parallel_size: 1
+  gpu_memory_utilization: 0.8
+  free_cache_engine: true
+  max_num_batched_tokens: 8192
+  max_num_seqs: 4
+  max_model_len: 11024
+  wake_up_timeout: 120
+  response_length: 10000
+  ignore_eos: false
+  log_prob_use_dynamic_bsz: true
+  log_prob_micro_batch_size_per_gpu: 1
+  log_prob_max_token_len_per_gpu: 11024
+  load_format: dummy
+  skip_tokenizer_init: false
+  agent:
+    num_workers: 4
+  val_kwargs:
+    temperature: 1.0
+    top_p: 0.7
+    top_k: -1
+    do_sample: true
+    n: 1
+  checkpoint_engine:
+    update_weights_bucket_megabytes: 256
+
+ref:
+  strategy: fsdp
+  param_offload: false
+  model_dtype: bfloat16
+  log_prob_use_dynamic_bsz: true
+  log_prob_micro_batch_size_per_gpu: 1
+  log_prob_max_token_len_per_gpu: 11024
+  ulysses_sequence_parallel_size: 1
+
+algorithm:
+  adv_estimator: grpo
+  use_kl_in_reward: false
+  norm_adv_by_std_in_grpo: true
+
+trainer:
+  project_name: branch-vs-dapo
+  experiment_name: qwen3_8b_grpo
+  logger:
+    - console
+    - wandb
+  nnodes: 1
+  n_gpus_per_node: 2
+  total_epochs: 3
+  total_training_steps: 200
+  save_freq: 50
+  test_freq: 10
+  val_before_train: false
+  default_local_dir: outputs/ckpts/qwen3_8b_grpo
+  resume_mode: disable
+  use_legacy_worker_impl: disable
+
+reward:
+  path: src/branch_grpo/reward_overlong.py
+  name: compute_score
+  manager:
+    source: importlib
+    name: OverlongRewardManager
+    module_path: src/branch_grpo/reward_overlong.py
+  kwargs:
+    max_resp_len: 10000
+    overlong_buffer_cfg:
+      enable: true
+      len: 1024
+      penalty_factor: 1.0
+      log: false

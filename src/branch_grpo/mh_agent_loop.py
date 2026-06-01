@@ -31,6 +31,16 @@ from branch_grpo.mh_sampling import (
     should_accept,
 )
 
+_MH_VALIDATION_SENTINELS = {
+    "mh_step": -1.0,
+    "mh_accept_logprob": 0.0,
+    "mh_branch_point": -1.0,
+    "mh_branch_entropy": 0.0,
+    "mh_sequence_logprob": 0.0,
+    "mh_response_length": 0.0,
+    "mh_avg_token_logprob": 0.0,
+}
+
 
 def _env_int(name: str, default: int) -> int:
     value = os.environ.get(name)
@@ -47,6 +57,14 @@ def _env_bool(name: str, default: bool = False) -> bool:
     if value in (None, ""):
         return default
     return value.lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _numeric_or_sentinel(value: Any, sentinel: float) -> int | float:
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, (int, float)):
+        return value
+    return sentinel
 
 
 class MHPowerAgentLoop(AgentLoopBase):
@@ -186,7 +204,11 @@ class MHPowerAgentLoop(AgentLoopBase):
                 candidates.append(proposal)
 
             if accepted:
-                current = replace(proposal, source="chain_state", accepted=True)
+                current = replace(
+                    proposal,
+                    source="chain_state",
+                    accepted=True,
+                )
             else:
                 current = replace(
                     current,
@@ -496,20 +518,40 @@ class MHPowerAgentLoop(AgentLoopBase):
         elapsed: float,
         num_preempted: int,
     ) -> AgentLoopOutput:
+        response_length = min(len(candidate.response_ids), self.response_length)
+        avg_token_logprob = (
+            candidate.sequence_logprob / response_length if response_length > 0 else None
+        )
         extra_fields = {
             "turn_scores": [],
             "tool_rewards": [],
-            "mh_source": candidate.source,
+            "mh_source": candidate.source if isinstance(candidate.source, str) else "missing",
+            "mh_step": _numeric_or_sentinel(
+                candidate.mh_step, _MH_VALIDATION_SENTINELS["mh_step"]
+            ),
+            "mh_accepted": bool(candidate.accepted),
+            "mh_accept_logprob": _numeric_or_sentinel(
+                candidate.accept_logprob, _MH_VALIDATION_SENTINELS["mh_accept_logprob"]
+            ),
+            "mh_branch_point": _numeric_or_sentinel(
+                candidate.branch_point, _MH_VALIDATION_SENTINELS["mh_branch_point"]
+            ),
+            "mh_branch_entropy": _numeric_or_sentinel(
+                candidate.branch_entropy, _MH_VALIDATION_SENTINELS["mh_branch_entropy"]
+            ),
+            "mh_sequence_logprob": _numeric_or_sentinel(
+                candidate.sequence_logprob, _MH_VALIDATION_SENTINELS["mh_sequence_logprob"]
+            ),
+            "mh_response_length": _numeric_or_sentinel(
+                response_length, _MH_VALIDATION_SENTINELS["mh_response_length"]
+            ),
+            "mh_avg_token_logprob": _numeric_or_sentinel(
+                avg_token_logprob, _MH_VALIDATION_SENTINELS["mh_avg_token_logprob"]
+            ),
             "mh_chain_id": candidate.chain_id,
-            "mh_step": candidate.mh_step,
-            "mh_accepted": candidate.accepted,
-            "mh_accept_logprob": candidate.accept_logprob,
-            "mh_branch_point": candidate.branch_point,
             "mh_branch_strategy": candidate.branch_strategy,
-            "mh_branch_entropy": candidate.branch_entropy,
             "mh_variant": self.variant,
             "mh_alpha": self.alpha,
-            "mh_sequence_logprob": candidate.sequence_logprob,
             "mh_top_logprobs_k": self.top_logprobs,
             "mh_entropy_available": candidate.top_logprobs is not None,
         }

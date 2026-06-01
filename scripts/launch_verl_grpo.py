@@ -35,8 +35,14 @@ def _value(value: Any) -> str:
         return _bool(value)
     if value is None:
         return "null"
+    if isinstance(value, dict):
+        return (
+            "{"
+            + ",".join(f"{str(key)}:{_value(val)}" for key, val in value.items())
+            + "}"
+        )
     if isinstance(value, (list, tuple)):
-        return json.dumps(list(value))
+        return json.dumps(value)
     return str(value)
 
 
@@ -44,18 +50,35 @@ def _override(key: str, value: Any) -> str:
     return f"{key}={_value(value)}"
 
 
+def _expand_scalar(value: Any) -> Any:
+    if isinstance(value, str):
+        return os.path.expandvars(os.path.expanduser(value))
+    return value
+
+
+def _resolve_path(value: str, base_dir: Path) -> str:
+    expanded = _expand_scalar(value)
+    if "://" in expanded:
+        return expanded
+    path = Path(expanded)
+    if not path.is_absolute():
+        path = base_dir / path
+    return str(path.resolve())
+
+
 def _path_list(values: list[str], base_dir: Path) -> list[str]:
-    resolved = []
-    for value in values:
-        expanded = os.path.expandvars(os.path.expanduser(str(value)))
-        if "://" in expanded:
-            resolved.append(expanded)
-            continue
-        path = Path(expanded)
-        if not path.is_absolute():
-            path = base_dir / path
-        resolved.append(str(path.resolve()))
-    return resolved
+    return [_resolve_path(str(value), base_dir) for value in values]
+
+
+def _optional_overrides(
+    config: dict[str, Any], mappings: list[tuple[str, str]]
+) -> list[str]:
+    overrides = []
+    for config_path, override_key in mappings:
+        value = _get(config, config_path, None)
+        if value is not None:
+            overrides.append(_override(override_key, _expand_scalar(value)))
+    return overrides
 
 
 def load_config(path: str | Path) -> dict[str, Any]:
@@ -111,7 +134,7 @@ def build_overrides(config: dict[str, Any], repo_root: Path = REPO_ROOT) -> list
         ),
         _override(
             "actor_rollout_ref.model.path",
-            _get(config, "model.path", "Qwen/Qwen2.5-3B-Instruct"),
+            _expand_scalar(_get(config, "model.path", "Qwen/Qwen2.5-3B-Instruct")),
         ),
         _override(
             "actor_rollout_ref.model.trust_remote_code",
@@ -251,16 +274,69 @@ def build_overrides(config: dict[str, Any], repo_root: Path = REPO_ROOT) -> list
         ),
         _override(
             "trainer.default_local_dir",
-            str(
-                (
-                    repo_root
-                    / _get(
-                        config, "trainer.default_local_dir", "checkpoints/branch_grpo"
-                    )
-                ).resolve()
+            _resolve_path(
+                str(_get(config, "trainer.default_local_dir", "checkpoints/branch_grpo")),
+                repo_root,
             ),
         ),
     ]
+
+    overrides.extend(
+        _optional_overrides(
+            config,
+            [
+                ("data.gen_batch_size", "++data.gen_batch_size"),
+                ("data.seed", "data.seed"),
+                ("data.apply_chat_template_kwargs", "++data.apply_chat_template_kwargs"),
+                ("model.override_config", "++actor_rollout_ref.model.override_config"),
+                ("actor.clip_ratio_low", "actor_rollout_ref.actor.clip_ratio_low"),
+                ("actor.clip_ratio_high", "actor_rollout_ref.actor.clip_ratio_high"),
+                ("actor.clip_ratio_c", "actor_rollout_ref.actor.clip_ratio_c"),
+                ("actor.loss_agg_mode", "actor_rollout_ref.actor.loss_agg_mode"),
+                (
+                    "actor.ppo_micro_batch_size_per_gpu",
+                    "actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu",
+                ),
+                (
+                    "actor.ulysses_sequence_parallel_size",
+                    "actor_rollout_ref.actor.ulysses_sequence_parallel_size",
+                ),
+                ("actor.lr_warmup_steps", "actor_rollout_ref.actor.optim.lr_warmup_steps"),
+                ("actor.weight_decay", "actor_rollout_ref.actor.optim.weight_decay"),
+                ("actor.fsdp_size", "actor_rollout_ref.actor.fsdp_config.fsdp_size"),
+                ("actor.model_dtype", "actor_rollout_ref.actor.fsdp_config.model_dtype"),
+                ("ref.strategy", "actor_rollout_ref.ref.strategy"),
+                (
+                    "ref.log_prob_micro_batch_size_per_gpu",
+                    "actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu",
+                ),
+                (
+                    "ref.ulysses_sequence_parallel_size",
+                    "actor_rollout_ref.ref.ulysses_sequence_parallel_size",
+                ),
+                ("ref.model_dtype", "actor_rollout_ref.ref.fsdp_config.model_dtype"),
+                ("rollout.calculate_log_probs", "actor_rollout_ref.rollout.calculate_log_probs"),
+                ("rollout.top_k", "actor_rollout_ref.rollout.top_k"),
+                ("rollout.repetition_penalty", "++actor_rollout_ref.rollout.repetition_penalty"),
+                ("rollout.pipeline_model_parallel_size", "actor_rollout_ref.rollout.pipeline_model_parallel_size"),
+                ("rollout.data_parallel_size", "actor_rollout_ref.rollout.data_parallel_size"),
+                ("rollout.max_model_len", "actor_rollout_ref.rollout.max_model_len"),
+                ("rollout.response_length", "actor_rollout_ref.rollout.response_length"),
+                ("rollout.ignore_eos", "actor_rollout_ref.rollout.ignore_eos"),
+                (
+                    "rollout.log_prob_micro_batch_size_per_gpu",
+                    "actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu",
+                ),
+                ("rollout.val_kwargs", "++actor_rollout_ref.rollout.val_kwargs"),
+                (
+                    "rollout.checkpoint_engine.update_weights_bucket_megabytes",
+                    "actor_rollout_ref.rollout.checkpoint_engine.update_weights_bucket_megabytes",
+                ),
+                ("trainer.total_training_steps", "trainer.total_training_steps"),
+                ("trainer.resume_mode", "trainer.resume_mode"),
+            ],
+        )
+    )
 
     use_legacy_worker_impl = _get(config, "trainer.use_legacy_worker_impl", None)
     if use_legacy_worker_impl is not None:
@@ -271,6 +347,25 @@ def build_overrides(config: dict[str, Any], repo_root: Path = REPO_ROOT) -> list
     val_batch_size = _get(config, "data.val_batch_size", None)
     if val_batch_size is not None:
         overrides.append(_override("data.val_batch_size", val_batch_size))
+
+    reward_manager = _get(config, "reward.manager", None)
+    if isinstance(reward_manager, dict):
+        manager_path = reward_manager.get("module_path")
+        if manager_path:
+            manager_path = _resolve_path(str(manager_path), repo_root)
+            overrides.append(_override("reward.reward_manager.module.path", manager_path))
+        for config_key, override_key in [
+            ("source", "reward.reward_manager.source"),
+            ("name", "reward.reward_manager.name"),
+        ]:
+            value = reward_manager.get(config_key)
+            if value is not None:
+                overrides.append(_override(override_key, _expand_scalar(value)))
+
+    reward_kwargs = _get(config, "reward.kwargs", None)
+    if isinstance(reward_kwargs, dict):
+        for key, value in reward_kwargs.items():
+            overrides.append(_override(f"++reward.reward_kwargs.{key}", _expand_scalar(value)))
 
     lora_rank = int(_get(config, "model.lora.rank", 0) or 0)
     if lora_rank > 0:
@@ -325,15 +420,14 @@ def build_overrides(config: dict[str, Any], repo_root: Path = REPO_ROOT) -> list
 def _env_value(value: Any) -> str:
     if isinstance(value, bool):
         return "1" if value else "0"
-    return str(value)
+    return str(_expand_scalar(value))
 
 
 def build_env(config: dict[str, Any]) -> dict[str, str]:
     mh_config = config.get("mh") or {}
-    if not isinstance(mh_config, dict):
-        return {}
+    env = {}
 
-    mapping = {
+    mh_mapping = {
         "variant": "BRANCH_GRPO_MH_VARIANT",
         "alpha": "BRANCH_GRPO_MH_ALPHA",
         "steps": "BRANCH_GRPO_MH_STEPS",
@@ -344,11 +438,12 @@ def build_env(config: dict[str, Any]) -> dict[str, str]:
         "top_logprobs": "BRANCH_GRPO_MH_TOP_LOGPROBS",
         "seed": "BRANCH_GRPO_MH_SEED",
     }
-    env = {}
-    for key, env_key in mapping.items():
-        value = mh_config.get(key)
-        if value is not None:
-            env[env_key] = _env_value(value)
+    if isinstance(mh_config, dict):
+        for key, env_key in mh_mapping.items():
+            value = mh_config.get(key)
+            if value is not None:
+                env[env_key] = _env_value(value)
+
     return env
 
 
