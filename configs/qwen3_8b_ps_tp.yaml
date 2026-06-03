@@ -58,7 +58,7 @@ rollout:
   top_p: 1.0
   top_k: -1
   repetition_penalty: 1.0
-  tensor_model_parallel_size: 1
+  tensor_model_parallel_size: 2
   pipeline_model_parallel_size: 1
   data_parallel_size: 1
   gpu_memory_utilization: 0.65
@@ -110,18 +110,18 @@ algorithm:
 
 trainer:
   project_name: branch-vs-dapo
-  experiment_name: qwen3_8b_ps_stable_offloadfix
+  experiment_name: qwen3_8b_ps_tp_stable_offloadfix
   logger:
     - console
     - wandb
   nnodes: 1
-  n_gpus_per_node: 2
+  n_gpus_per_node: 4
   total_epochs: 3
   total_training_steps: 200
   save_freq: 20
   test_freq: 20
   val_before_train: false
-  default_local_dir: outputs/ckpts/qwen3_8b_ps_stable_offloadfix
+  default_local_dir: outputs/ckpts/qwen3_8b_ps_tp_stable_offloadfix
   resume_mode: disable
   use_legacy_worker_impl: disable
 

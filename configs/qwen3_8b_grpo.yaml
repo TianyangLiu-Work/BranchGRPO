@@ -45,7 +45,7 @@ actor:
   entropy_coeff: 0.0
   grad_clip: 1.0
   param_offload: true
-  optimizer_offload: true
+  optimizer_offload: false
   fsdp_size: -1
   model_dtype: bfloat16
   ulysses_sequence_parallel_size: 1
@@ -61,7 +61,7 @@ rollout:
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
   data_parallel_size: 1
-  gpu_memory_utilization: 0.8
+  gpu_memory_utilization: 0.65
   free_cache_engine: true
   max_num_batched_tokens: 8192
   max_num_seqs: 4
@@ -101,7 +101,7 @@ algorithm:
 
 trainer:
   project_name: branch-vs-dapo
-  experiment_name: qwen3_8b_grpo
+  experiment_name: qwen3_8b_grpo_stable_offloadfix
   logger:
     - console
     - wandb
@@ -109,10 +109,10 @@ trainer:
   n_gpus_per_node: 2
   total_epochs: 3
   total_training_steps: 200
-  save_freq: 50
-  test_freq: 10
+  save_freq: 20
+  test_freq: 20
   val_before_train: false
-  default_local_dir: outputs/ckpts/qwen3_8b_grpo
+  default_local_dir: outputs/ckpts/qwen3_8b_grpo_stable_offloadfix
   resume_mode: disable
   use_legacy_worker_impl: disable
 

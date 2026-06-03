@@ -575,6 +575,9 @@ class MHPowerAgentLoopWorker(AgentLoopWorker):
     """Worker that collapses repeated GRPO rows into per-prompt MH pools."""
 
     async def generate_sequences(self, batch):
+        if batch.meta_info.get("validate", False):
+            return await super().generate_sequences(batch)
+
         config = self.rollout_config
         sampling_params = dict(
             temperature=config.temperature,
