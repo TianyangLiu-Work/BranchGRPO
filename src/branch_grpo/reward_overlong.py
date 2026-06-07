@@ -296,11 +296,11 @@ class OverlongRewardManager:
         reward_extra_info = {
             "acc": score,
             "overlong_reward": penalty,
-            "overlong": penalty < 0,
+            "overlong": bool(penalty < 0),
             **mh_info,
         }
 
         return {
             "reward_score": reward,
-            "reward_extra_info": reward_extra_info,
+            "reward_extra_info": _plain_value(reward_extra_info),
         }

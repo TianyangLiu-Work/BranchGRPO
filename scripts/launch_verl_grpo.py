@@ -425,7 +425,13 @@ def _env_value(value: Any) -> str:
 
 def build_env(config: dict[str, Any]) -> dict[str, str]:
     mh_config = config.get("mh") or {}
+    env_config = config.get("env") or {}
     env = {}
+
+    if isinstance(env_config, dict):
+        for key, value in env_config.items():
+            if value is not None:
+                env[str(key)] = _env_value(value)
 
     mh_mapping = {
         "variant": "BRANCH_GRPO_MH_VARIANT",

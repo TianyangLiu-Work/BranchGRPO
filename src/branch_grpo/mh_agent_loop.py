@@ -60,11 +60,24 @@ def _env_bool(name: str, default: bool = False) -> bool:
 
 
 def _numeric_or_sentinel(value: Any, sentinel: float) -> int | float:
+    value = _plain_value(value)
     if isinstance(value, bool):
         return float(value)
     if isinstance(value, (int, float)):
         return value
     return sentinel
+
+
+def _plain_value(value: Any) -> Any:
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, np.ndarray):
+        return [_plain_value(item) for item in value.tolist()]
+    if isinstance(value, dict):
+        return {str(key): _plain_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_plain_value(item) for item in value]
+    return value
 
 
 class MHPowerAgentLoop(AgentLoopBase):
@@ -555,6 +568,7 @@ class MHPowerAgentLoop(AgentLoopBase):
             "mh_top_logprobs_k": self.top_logprobs,
             "mh_entropy_available": candidate.top_logprobs is not None,
         }
+        extra_fields = _plain_value(extra_fields)
         return AgentLoopOutput(
             prompt_ids=prompt_ids,
             response_ids=candidate.response_ids[: self.response_length],

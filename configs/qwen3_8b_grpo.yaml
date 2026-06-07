@@ -1,6 +1,13 @@
 verl:
   entrypoint: verl.trainer.main_ppo
 
+env:
+  HF_HOME: /data2/fyyang/.cache/huggingface
+  HF_HUB_CACHE: /data2/fyyang/.cache/huggingface/hub
+  HUGGINGFACE_HUB_CACHE: /data2/fyyang/.cache/huggingface/hub
+  TRANSFORMERS_CACHE: /data2/fyyang/.cache/huggingface/hub
+  HF_DATASETS_CACHE: /data2/fyyang/.cache/huggingface/datasets
+
 model:
   path: Qwen/Qwen3-8B
   trust_remote_code: true
@@ -16,7 +23,7 @@ data:
     - /data2/fyyang/branch-grpo-old/data/math__aime_repeated_8x_240.parquet
   train_batch_size: 4
   gen_batch_size: 4
-  val_batch_size: null
+  val_batch_size: 4
   seed: 1
   max_prompt_length: 1024
   max_response_length: 10000
@@ -58,7 +65,7 @@ rollout:
   top_p: 1.0
   top_k: -1
   repetition_penalty: 1.0
-  tensor_model_parallel_size: 1
+  tensor_model_parallel_size: 2
   pipeline_model_parallel_size: 1
   data_parallel_size: 1
   gpu_memory_utilization: 0.65
@@ -106,7 +113,7 @@ trainer:
     - console
     - wandb
   nnodes: 1
-  n_gpus_per_node: 2
+  n_gpus_per_node: 4
   total_epochs: 3
   total_training_steps: 200
   save_freq: 20
@@ -128,5 +135,5 @@ reward:
     overlong_buffer_cfg:
       enable: true
       len: 1024
-      penalty_factor: 1.0
+      penalty_factor: 2.0
       log: false

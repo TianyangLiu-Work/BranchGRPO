@@ -1,6 +1,13 @@
 verl:
   entrypoint: verl.trainer.main_ppo
 
+env:
+  HF_HOME: /data2/fyyang/.cache/huggingface
+  HF_HUB_CACHE: /data2/fyyang/.cache/huggingface/hub
+  HUGGINGFACE_HUB_CACHE: /data2/fyyang/.cache/huggingface/hub
+  TRANSFORMERS_CACHE: /data2/fyyang/.cache/huggingface/hub
+  HF_DATASETS_CACHE: /data2/fyyang/.cache/huggingface/datasets
+
 model:
   path: Qwen/Qwen3-8B
   trust_remote_code: true
