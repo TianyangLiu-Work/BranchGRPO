@@ -42,6 +42,7 @@ class CachedRequestState:
     block_ids: tuple[list[int], ...]
     num_computed_tokens: int
     output_token_ids: list[int]
+    power_smc_config: PowerSMCConfig | None = None
 
     mrope_positions: torch.Tensor | None = None
     mrope_position_delta: int | None = None
@@ -396,9 +397,11 @@ class InputBatch:
                 self.temperature_cpu[req_index] = sampling_params.temperature
                 self.random_reqs.add(req_id)
 
-            if power_smc_config := PowerSMCConfig.from_sampling_params(
-                sampling_params
-            ):
+            power_smc_config = (
+                request.power_smc_config
+                or PowerSMCConfig.from_sampling_params(sampling_params)
+            )
+            if power_smc_config:
                 self.power_smc_configs[req_id] = power_smc_config
                 alpha_t = self._power_smc_alpha_for_req_index(req_index)
                 self.power_smc_alpha_cpu[req_index] = alpha_t

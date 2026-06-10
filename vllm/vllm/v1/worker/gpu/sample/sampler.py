@@ -7,11 +7,14 @@ import torch
 import vllm.envs as envs
 from vllm.config.model import LogprobsMode
 from vllm.sampling_params import SamplingParams
+from vllm.v1.outputs import PowerSMCLogprobTensors
+from vllm.v1.power_smc import PowerSMCConfig, alpha_ramp, proposal_temperature
 from vllm.v1.sample.ops.topk_topp_sampler import (
     apply_top_k_top_p,
     flashinfer_sample,
     flashinfer_sampler_supported,
 )
+from vllm.v1.worker.gpu.buffer_utils import UvaBackedTensor
 from vllm.v1.worker.gpu.input_batch import InputBatch
 from vllm.v1.worker.gpu.metrics.logits import get_num_nans
 from vllm.v1.worker.gpu.sample.bad_words import BadWordsState
@@ -51,22 +54,55 @@ class Sampler:
         self.logprob_token_ids_state = LogprobTokenIdsState(max_num_reqs, device)
         self.num_speculative_tokens = num_speculative_tokens
         self.use_flashinfer = flashinfer_sampler_supported()
+        self.power_smc_configs: dict[int, PowerSMCConfig] = {}
+        self.power_smc_alpha = UvaBackedTensor(max_num_reqs, dtype=torch.float32)
+        self.power_smc_alpha.np.fill(1.0)
+        self.power_smc_alpha.copy_to_uva()
 
     def add_request(
-        self, req_idx: int, prompt_len: int, sampling_params: SamplingParams
+        self,
+        req_idx: int,
+        prompt_len: int,
+        sampling_params: SamplingParams,
+        power_smc_config: PowerSMCConfig | None = None,
     ) -> None:
         self.sampling_states.add_request(req_idx, sampling_params)
+        if power_smc_config is not None:
+            self.power_smc_configs[req_idx] = power_smc_config
+            alpha_t = alpha_ramp(0, power_smc_config.alpha,
+                                 power_smc_config.alpha_ramp_tokens)
+            self.power_smc_alpha.np[req_idx] = alpha_t
+            self.sampling_states.temperature.np[req_idx] = (
+                proposal_temperature(alpha_t))
         self.penalties_state.add_request(req_idx, sampling_params)
         self.logit_bias_state.add_request(req_idx, prompt_len, sampling_params)
         self.bad_words_state.add_request(req_idx, sampling_params)
         self.logprob_token_ids_state.add_request(req_idx, sampling_params)
 
+    def remove_request(self, req_idx: int) -> None:
+        self.power_smc_configs.pop(req_idx, None)
+        self.power_smc_alpha.np[req_idx] = 1.0
+
     def apply_staged_writes(self) -> None:
+        self._refresh_power_smc_state()
         self.sampling_states.apply_staged_writes()
+        self.power_smc_alpha.copy_to_uva()
         self.penalties_state.apply_staged_writes()
         self.logit_bias_state.apply_staged_writes()
         self.bad_words_state.apply_staged_writes()
         self.logprob_token_ids_state.apply_staged_writes()
+
+    def _refresh_power_smc_state(self) -> None:
+        for req_idx, config in self.power_smc_configs.items():
+            step = max(
+                0,
+                int(self.penalties_state.req_states.num_computed_tokens_np[req_idx])
+                - int(self.penalties_state.req_states.prompt_len.np[req_idx]),
+            )
+            alpha_t = alpha_ramp(step, config.alpha, config.alpha_ramp_tokens)
+            self.power_smc_alpha.np[req_idx] = alpha_t
+            self.sampling_states.temperature.np[req_idx] = (
+                proposal_temperature(alpha_t))
 
     def __call__(
         self,
@@ -89,6 +125,14 @@ class Sampler:
             idx_mapping_np
         )
         return_logprobs = max_num_logprobs != NO_LOGPROBS or max_per_req_token_ids > 0
+        use_power_smc = any(
+            int(req_idx) in self.power_smc_configs for req_idx in idx_mapping_np
+        )
+        power_smc_logits = logits.to(torch.float32).clone() if use_power_smc else None
+        if use_power_smc:
+            self._refresh_power_smc_state()
+            self.sampling_states.temperature.copy_to_uva()
+            self.power_smc_alpha.copy_to_uva()
 
         sampled, processed_logits = self.sample(
             logits,
@@ -118,6 +162,14 @@ class Sampler:
         else:
             logprobs_tensors = None
 
+        power_smc_logprobs = None
+        if power_smc_logits is not None:
+            power_smc_logprobs = self.gather_power_smc_logprobs(
+                power_smc_logits,
+                self.power_smc_alpha.gpu[expanded_idx_mapping],
+                sampled,
+            )
+
         # These are GPU tensors.
         sampler_output = SamplerOutput(
             # The sampled tokens are expanded to 2D tensor with shape
@@ -127,8 +179,25 @@ class Sampler:
             logprobs_tensors=logprobs_tensors,
             num_nans=num_nans,
             num_sampled=input_batch.seq_lens.new_ones(input_batch.num_reqs),
+            power_smc_logprobs=power_smc_logprobs,
         )
         return sampler_output
+
+    @staticmethod
+    def gather_power_smc_logprobs(
+        logits: torch.Tensor,
+        alpha: torch.Tensor,
+        sampled: torch.Tensor,
+    ) -> PowerSMCLogprobTensors:
+        assert logits.dtype == torch.float32
+        token_ids = sampled.unsqueeze(-1)
+        base_logprobs = logits.log_softmax(dim=-1, dtype=torch.float32)
+        proposal_logits = logits * alpha.unsqueeze(-1)
+        proposal_logprobs = proposal_logits.log_softmax(dim=-1, dtype=torch.float32)
+        return PowerSMCLogprobTensors(
+            base_logprobs=base_logprobs.gather(-1, token_ids).squeeze(-1),
+            proposal_logprobs=proposal_logprobs.gather(-1, token_ids).squeeze(-1),
+        )
 
     def apply_sampling_params(
         self,

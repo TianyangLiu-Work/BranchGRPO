@@ -20,6 +20,28 @@ from examples.generate.benchmark_power_smc import (
     sample_index,
     write_markdown_report,
 )
+from examples.generate.benchmark_power_smc_aime import Config as AIMEConfig
+from examples.generate.benchmark_power_smc_aime import (
+    effective_particle_batch,
+    iter_sweep_batches,
+    make_sampling_params,
+    run_problem_attempt_batch,
+)
+from examples.generate.benchmark_power_smc_aime import (
+    load_problems as load_aime_problems,
+)
+from examples.generate.benchmark_power_smc_aime import (
+    pass_at_k_or_none as aime_pass_at_k_or_none,
+)
+from examples.generate.benchmark_power_smc_aime import (
+    summarize_config as summarize_aime_config,
+)
+from examples.generate.benchmark_power_smc_aime import (
+    summarize_problem as summarize_aime_problem,
+)
+from examples.generate.benchmark_power_smc_aime import (
+    write_report as write_aime_report,
+)
 from examples.generate.power_smc import (
     PowerSMCConfig,
     VLLMPowerSMCSampler,
@@ -319,6 +341,359 @@ def test_benchmark_weighted_best_of_n_helpers() -> None:
 
     assert weights == [0.25, 0.75]
     assert sample_index(weights, random.Random(0)) == 1
+
+
+def test_aime_pass_at_k_skips_k_larger_than_attempts() -> None:
+    assert aime_pass_at_k_or_none([False, False, False, False], 4) == 0.0
+    assert aime_pass_at_k_or_none([False, False, False, False], 8) is None
+
+
+def test_aime_loads_selected_problem_indices(tmp_path) -> None:
+    path = tmp_path / "aime.jsonl"
+    path.write_text(
+        "\n".join([
+            '{"id": 0, "problem": "p0", "answer": "0"}',
+            '{"id": 1, "problem": "p1", "answer": "1"}',
+            '{"id": 2, "problem": "p2", "answer": "2"}',
+        ]),
+        encoding="utf-8",
+    )
+
+    problems = load_aime_problems(path, limit=None, problem_indices=[2, 0])
+
+    assert [problem["id"] for problem in problems] == [2, 0]
+    assert [problem["_source_index"] for problem in problems] == [2, 0]
+
+
+def test_aime_effective_particle_batch() -> None:
+    assert effective_particle_batch(alpha=1.0, particles=8, batch_size=4) == 4
+    assert effective_particle_batch(alpha=1.3, particles=8, batch_size=4) == 32
+
+
+def test_aime_sweep_batches_are_problem_major(tmp_path) -> None:
+    config = AIMEConfig(
+        model="fake",
+        prompt_file=tmp_path / "aime.jsonl",
+        output_dir=tmp_path,
+        alphas=[1.0, 2.0, 3.0],
+        particles=[8],
+        batch_sizes=[4, 8],
+        attempts_per_problem=8,
+        max_tokens=16,
+        block_size=4,
+        ess_threshold=0.5,
+        alpha_ramp_tokens=1,
+        gpu_memory_utilization=0.5,
+        tensor_parallel_size=1,
+        dtype="auto",
+        attention_backend=None,
+        enable_thinking=True,
+        async_scheduling=False,
+        enforce_eager=False,
+        trust_remote_code=True,
+        limit=None,
+        problem_indices=None,
+        checkpoint_every_batch=True,
+    )
+
+    batches = list(
+        iter_sweep_batches(
+            problems=[{
+                "id": "p0",
+                "answer": "1",
+            }, {
+                "id": "p1",
+                "answer": "2",
+            }],
+            prompts=["prompt0", "prompt1"],
+            config=config,
+        ))
+
+    assert [(problem["id"], prompt, batch, alpha, particles)
+            for _, problem, prompt, batch, alpha, particles in batches] == [
+                ("p0", "prompt0", 4, 1.0, 0),
+                ("p0", "prompt0", 4, 2.0, 8),
+                ("p0", "prompt0", 4, 3.0, 8),
+                ("p0", "prompt0", 8, 1.0, 0),
+                ("p0", "prompt0", 8, 2.0, 8),
+                ("p0", "prompt0", 8, 3.0, 8),
+                ("p1", "prompt1", 4, 1.0, 0),
+                ("p1", "prompt1", 4, 2.0, 8),
+                ("p1", "prompt1", 4, 3.0, 8),
+                ("p1", "prompt1", 8, 1.0, 0),
+                ("p1", "prompt1", 8, 2.0, 8),
+                ("p1", "prompt1", 8, 3.0, 8),
+            ]
+
+
+def test_aime_problem_attempts_are_batched(monkeypatch, tmp_path) -> None:
+    class FakeSamplingParams:
+
+        def __init__(self, **kwargs) -> None:
+            self.__dict__.update(kwargs)
+
+    class FakeBatchLLM:
+
+        def __init__(self) -> None:
+            self.calls = []
+
+        def generate(self, prompts, sampling_params, use_tqdm=False):
+            self.calls.append((prompts, sampling_params, use_tqdm))
+            outputs = []
+            for idx in range(len(prompts)):
+                outputs.append(
+                    SimpleNamespace(
+                        outputs=[
+                            SimpleNamespace(
+                                text=f"solution \\boxed{{{idx}}}",
+                                token_ids=[idx],
+                            )
+                        ],
+                        power_smc={
+                            "resample_count": idx,
+                            "final_ess": 2.0,
+                            "kv_cow_saved_blocks": idx + 1,
+                            "kv_cow_saved_tokens": (idx + 1) * 64,
+                        },
+                    ))
+            return outputs
+
+    monkeypatch.setitem(sys.modules, "vllm",
+                        SimpleNamespace(SamplingParams=FakeSamplingParams))
+    config = AIMEConfig(
+        model="fake",
+        prompt_file=tmp_path / "aime.jsonl",
+        output_dir=tmp_path,
+        alphas=[2.0],
+        particles=[8],
+        batch_sizes=[8],
+        attempts_per_problem=8,
+        max_tokens=16,
+        block_size=4,
+        ess_threshold=0.5,
+        alpha_ramp_tokens=1,
+        gpu_memory_utilization=0.5,
+        tensor_parallel_size=1,
+        dtype="auto",
+        attention_backend=None,
+        enable_thinking=True,
+        async_scheduling=False,
+        enforce_eager=False,
+        trust_remote_code=True,
+        limit=None,
+        problem_indices=None,
+        checkpoint_every_batch=True,
+    )
+    llm = FakeBatchLLM()
+
+    rows = run_problem_attempt_batch(
+        llm=llm,
+        prompt="prompt",
+        problem={
+            "id": "p0",
+            "answer": "3",
+        },
+        problem_index=0,
+        alpha=2.0,
+        particles=8,
+        batch_size=8,
+        config=config,
+    )
+
+    assert len(llm.calls) == 1
+    prompts, params, use_tqdm = llm.calls[0]
+    assert prompts == ["prompt"] * 8
+    assert use_tqdm is False
+    assert [param.seed for param in params] == list(range(8))
+    assert [
+        param.extra_args["power_smc"]["particles"] for param in params
+    ] == [8] * 8
+    assert len(rows) == 8
+    assert rows[3]["passed"] is True
+    assert rows[3]["correct"] is True
+    assert rows[3]["resample_count"] == 3
+    assert rows[3]["external_batch_size"] == 8
+    assert rows[3]["effective_particle_batch"] == 64
+
+
+def test_aime_alpha_one_uses_plain_vllm_sampling(monkeypatch,
+                                                 tmp_path) -> None:
+    class FakeSamplingParams:
+
+        def __init__(self, **kwargs) -> None:
+            self.__dict__.update(kwargs)
+            self.extra_args = kwargs.get("extra_args")
+
+    monkeypatch.setitem(sys.modules, "vllm",
+                        SimpleNamespace(SamplingParams=FakeSamplingParams))
+    config = AIMEConfig(
+        model="fake",
+        prompt_file=tmp_path / "aime.jsonl",
+        output_dir=tmp_path,
+        alphas=[1.0],
+        particles=[8],
+        batch_sizes=[8],
+        attempts_per_problem=8,
+        max_tokens=16,
+        block_size=4,
+        ess_threshold=0.5,
+        alpha_ramp_tokens=1,
+        gpu_memory_utilization=0.5,
+        tensor_parallel_size=1,
+        dtype="auto",
+        attention_backend=None,
+        enable_thinking=True,
+        async_scheduling=False,
+        enforce_eager=False,
+        trust_remote_code=True,
+        limit=None,
+        problem_indices=None,
+        checkpoint_every_batch=True,
+    )
+
+    params = make_sampling_params(
+        alpha=1.0,
+        particles=8,
+        seed=3,
+        config=config,
+    )
+
+    assert params.seed == 3
+    assert params.temperature == 1.0
+    assert params.extra_args is None
+
+
+def test_aime_summary_averages_pass_at_k_per_problem() -> None:
+    def row(kwargs):
+        base = {
+            "external_batch_size": 2,
+            "effective_particle_batch": 16,
+            "batch_latency_s": 8.0,
+            "latency_per_attempt_s": kwargs.get("latency_s", 1.0),
+            "passed": kwargs.get("correct", False),
+        }
+        base.update(kwargs)
+        return base
+
+    problem_a = [
+        row({
+            "alpha": 2.0,
+            "particles": 8,
+            "problem_index": 0,
+            "problem_id": "a",
+            "correct": True,
+            "latency_s": 1.0,
+            "token_count": 10,
+            "resample_count": 1,
+            "kv_cow_saved_blocks": 2,
+        }),
+        row({
+            "alpha": 2.0,
+            "particles": 8,
+            "problem_index": 0,
+            "problem_id": "a",
+            "correct": False,
+            "latency_s": 3.0,
+            "token_count": 14,
+            "resample_count": 2,
+            "kv_cow_saved_blocks": 3,
+        }),
+    ]
+    problem_b = [
+        row({
+            "alpha": 2.0,
+            "particles": 8,
+            "problem_index": 1,
+            "problem_id": "b",
+            "correct": False,
+            "latency_s": 5.0,
+            "token_count": 20,
+            "resample_count": 0,
+            "kv_cow_saved_blocks": 0,
+        }),
+        row({
+            "alpha": 2.0,
+            "particles": 8,
+            "problem_index": 1,
+            "problem_id": "b",
+            "correct": False,
+            "latency_s": 7.0,
+            "token_count": 22,
+            "resample_count": 0,
+            "kv_cow_saved_blocks": 0,
+        }),
+    ]
+
+    problem_summaries = [
+        summarize_aime_problem(problem_a),
+        summarize_aime_problem(problem_b),
+    ]
+    summary = summarize_aime_config(problem_a + problem_b, problem_summaries)
+
+    assert problem_summaries[0]["pass_at_1"] == pytest.approx(0.5)
+    assert problem_summaries[1]["pass_at_1"] == 0.0
+    assert summary["mean_pass_at_1"] == pytest.approx(0.25)
+    assert summary["mean_pass_at_4"] is None
+    assert summary["mean_latency_s"] == pytest.approx(4.0)
+    assert summary["problem_pass_rate"] == pytest.approx(0.5)
+    assert summary["mean_batch_latency_s"] == pytest.approx(8.0)
+    assert summary["total_resamples"] == 3
+    assert summary["total_kv_cow_saved_blocks"] == 5
+
+
+def test_aime_report_marks_incomplete_coverage(tmp_path) -> None:
+    config = AIMEConfig(
+        model="fake",
+        prompt_file=tmp_path / "aime.jsonl",
+        output_dir=tmp_path,
+        alphas=[1.3],
+        particles=[8],
+        batch_sizes=[4],
+        attempts_per_problem=4,
+        max_tokens=16,
+        block_size=4,
+        ess_threshold=0.5,
+        alpha_ramp_tokens=1,
+        gpu_memory_utilization=0.5,
+        tensor_parallel_size=1,
+        dtype="auto",
+        attention_backend=None,
+        enable_thinking=True,
+        async_scheduling=False,
+        enforce_eager=False,
+        trust_remote_code=True,
+        limit=None,
+        problem_indices=[7, 18, 20],
+        checkpoint_every_batch=True,
+    )
+    summary_rows = [{
+        "alpha": 1.3,
+        "particles": 8,
+        "external_batch_size": 4,
+        "effective_particle_batch": 32,
+        "completed_problems": 1,
+        "planned_problems": 3,
+        "problem_pass_rate": 1.0,
+        "mean_pass_at_4": 1.0,
+        "mean_pass_at_8": None,
+        "mean_pass_at_16": None,
+        "attempt_accuracy": 0.5,
+        "mean_batch_latency_s": 20.0,
+        "latency_per_attempt_s": 5.0,
+        "tokens_per_second": 100.0,
+        "total_resamples": 2,
+    }]
+
+    report = write_aime_report(
+        config=config,
+        summary_rows=summary_rows,
+        plots=[],
+        output_dir=tmp_path,
+    )
+
+    text = report.read_text(encoding="utf-8")
+    assert "Complete: `False`" in text
+    assert "| 4 | 1.3 | 8 | 32 | 1/3 |" in text
 
 
 def test_benchmark_report_includes_kv_alias_block_columns(tmp_path) -> None:

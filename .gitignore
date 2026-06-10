@@ -40,6 +40,9 @@ vllm/vllm/vllm_flash_attn/_vllm_fa2_C.abi3.so
 vllm/vllm/vllm_flash_attn/_vllm_fa3_C.abi3.so
 
 # Large benchmark outputs / logs
+/.cache/
+/.codegraph/
+/outputs/
 vllm/outputs/power_smc/*.json
 vllm/outputs/slurm/
 

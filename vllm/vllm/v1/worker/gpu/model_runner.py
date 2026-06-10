@@ -715,6 +715,8 @@ class GPUModelRunner(LoRAModelRunnerMixin):
             self.encoder_cache.remove_request(req_id)
         if self.prompt_logprobs_worker is not None:
             self.prompt_logprobs_worker.remove_request(req_id)
+        if self.sampler is not None:
+            self.sampler.remove_request(req_idx)
         self.lora_state.remove_request(req_id)
         return True
 
@@ -773,7 +775,10 @@ class GPUModelRunner(LoRAModelRunnerMixin):
             if self.is_last_pp_rank and new_req_data.sampling_params is not None:
                 assert self.sampler is not None
                 self.sampler.add_request(
-                    req_index, prompt_len, new_req_data.sampling_params
+                    req_index,
+                    prompt_len,
+                    new_req_data.sampling_params,
+                    new_req_data.power_smc_config,
                 )
                 assert self.prompt_logprobs_worker is not None
                 self.prompt_logprobs_worker.add_request(

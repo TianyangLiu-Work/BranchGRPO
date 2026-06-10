@@ -105,6 +105,15 @@ def test_request_stores_power_smc_config() -> None:
     assert request.power_smc_config.alpha == 1.0
 
 
+def test_power_smc_config_accepts_subunit_alpha() -> None:
+    params = SamplingParams(max_tokens=16, extra_args=power_smc_args(alpha=0.8))
+
+    cfg = PowerSMCConfig.from_sampling_params(params)
+
+    assert cfg is not None
+    assert cfg.alpha == 0.8
+
+
 def test_power_smc_config_can_disable_kv_cow() -> None:
     params = SamplingParams(
         max_tokens=16,
@@ -132,7 +141,7 @@ def test_power_smc_config_can_enable_kv_pool_diagnostics() -> None:
 @pytest.mark.parametrize(
     ("kwargs", "match"),
     [
-        ({"alpha": 0.5}, "alpha"),
+        ({"alpha": 0.0}, "alpha"),
         ({"particles": 0}, "particles"),
         ({"block_size": 0}, "block_size"),
         ({"ess_threshold": 0.0}, "ess_threshold"),
@@ -181,7 +190,6 @@ def test_power_smc_rejects_user_temperature_override() -> None:
     "kwargs",
     [
         {"stream_input": True},
-        {"lora_request": object()},
         {"is_encoder_decoder": True},
         {"speculative_config": object()},
         {"kv_block_size": 16},
@@ -192,6 +200,12 @@ def test_power_smc_rejects_engine_level_unsupported_features(kwargs) -> None:
 
     with pytest.raises(VLLMValidationError, match="Unsupported"):
         validate_power_smc_engine_features(config, **kwargs)
+
+
+def test_power_smc_accepts_lora_request() -> None:
+    config = PowerSMCConfig(enabled=True, block_size=24)
+
+    validate_power_smc_engine_features(config, lora_request=object())
 
 
 def test_power_smc_accepts_block_aligned_kv_boundary() -> None:
@@ -1966,6 +1980,53 @@ def test_power_smc_input_batch_sets_alpha_and_proposal_temperature() -> None:
         block_ids=([],),
         num_computed_tokens=2,
         output_token_ids=[],
+    )
+    input_batch = InputBatch(
+        max_num_reqs=2,
+        max_model_len=16,
+        max_num_batched_tokens=16,
+        device=torch.device("cpu"),
+        pin_memory=False,
+        vocab_size=32,
+        block_sizes=[1],
+        kernel_block_sizes=[1],
+    )
+
+    input_batch.add_request(request)
+    input_batch.refresh_metadata()
+
+    assert input_batch.sampling_metadata.power_smc_alpha is not None
+    expected_alpha = alpha_ramp(0, alpha_final=4.0, ramp_tokens=4)
+    torch.testing.assert_close(
+        input_batch.sampling_metadata.power_smc_alpha,
+        torch.tensor([expected_alpha]),
+    )
+    torch.testing.assert_close(
+        input_batch.sampling_metadata.temperature,
+        torch.tensor([proposal_temperature(expected_alpha)]),
+    )
+
+
+def test_power_smc_input_batch_uses_scheduler_config_without_extra_args() -> None:
+    config = PowerSMCConfig(
+        enabled=True,
+        alpha=4.0,
+        particles=8,
+        block_size=64,
+        ess_threshold=0.5,
+        alpha_ramp_tokens=4,
+    )
+    params = SamplingParams(max_tokens=8)
+    request = CachedRequestState(
+        req_id="power-smc-req",
+        prompt_token_ids=[1, 2],
+        mm_features=[],
+        sampling_params=params,
+        generator=None,
+        block_ids=([],),
+        num_computed_tokens=2,
+        output_token_ids=[],
+        power_smc_config=config,
     )
     input_batch = InputBatch(
         max_num_reqs=2,

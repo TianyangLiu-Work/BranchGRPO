@@ -5,7 +5,12 @@ import contextlib
 import numpy as np
 import torch
 
-from vllm.v1.outputs import AsyncModelRunnerOutput, LogprobsTensors, ModelRunnerOutput
+from vllm.v1.outputs import (
+    AsyncModelRunnerOutput,
+    LogprobsTensors,
+    ModelRunnerOutput,
+    PowerSMCLogprobTensors,
+)
 from vllm.v1.worker.gpu.sample.output import SamplerOutput
 
 
@@ -34,6 +39,11 @@ class AsyncOutput(AsyncModelRunnerOutput):
             if sampler_output.logprobs_tensors is not None:
                 self.logprobs_tensors = (
                     sampler_output.logprobs_tensors.to_cpu_nonblocking()
+                )
+            self.power_smc_logprobs: PowerSMCLogprobTensors | None = None
+            if sampler_output.power_smc_logprobs is not None:
+                self.power_smc_logprobs = (
+                    sampler_output.power_smc_logprobs.to_cpu_nonblocking()
                 )
             self.num_nans: np.ndarray | None = None
             if sampler_output.num_nans is not None:
@@ -65,6 +75,9 @@ class AsyncOutput(AsyncModelRunnerOutput):
 
         if self.logprobs_tensors is not None:
             self.model_runner_output.logprobs = self.logprobs_tensors.tolists()
+        if self.power_smc_logprobs is not None:
+            self.model_runner_output.power_smc_logprobs = (
+                self.power_smc_logprobs.tolists())
         self.model_runner_output.prompt_logprobs_dict = self.prompt_logprobs_dict
         return self.model_runner_output
 

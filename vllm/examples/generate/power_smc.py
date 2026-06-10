@@ -68,8 +68,8 @@ class PowerSMCConfig:
     def __post_init__(self) -> None:
         if self.max_tokens < 1:
             raise ValueError("max_tokens must be at least 1.")
-        if self.alpha <= 1.0:
-            raise ValueError("alpha must be > 1.0 for power sampling.")
+        if self.alpha <= 0.0:
+            raise ValueError("alpha must be > 0 for power sampling.")
         if self.particles < 1:
             raise ValueError("particles must be at least 1.")
         if not 0.0 < self.ess_threshold <= 1.0:

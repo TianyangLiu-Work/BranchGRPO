@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import torch
 
-from vllm.v1.outputs import LogprobsTensors
+from vllm.v1.outputs import LogprobsTensors, PowerSMCLogprobTensors
 
 
 @dataclass
@@ -13,3 +13,4 @@ class SamplerOutput:
     logprobs_tensors: LogprobsTensors | None
     num_nans: torch.Tensor | None
     num_sampled: torch.Tensor | None
+    power_smc_logprobs: PowerSMCLogprobTensors | None = None

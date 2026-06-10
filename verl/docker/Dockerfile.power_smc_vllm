@@ -1,0 +1,49 @@
+FROM branchgrpo:sglang-verl
+
+ARG MAX_JOBS=4
+ARG NVCC_THREADS=1
+ARG TORCH_CUDA_ARCH_LIST=9.0
+
+# Install vLLM runtime/build dependencies, then compile the local vLLM fork
+# against the torch/CUDA libraries in this image. The training launcher overlays
+# the mounted source tree at runtime but copies these ABI-matched .so files.
+RUN python3 -m pip install --no-cache-dir --no-deps \
+    setuptools-rust \
+    setuptools-scm \
+    vcs-versioning \
+    cbor2 \
+    py-cpuinfo \
+    blake3 \
+    prometheus-fastapi-instrumentator==7.1.0 \
+    lm-format-enforcer==0.11.3 \
+    llguidance==1.7.6 \
+    outlines_core==0.2.14 \
+    lark==1.2.2 \
+    xgrammar==0.2.1 \
+    compressed-tensors==0.17.0 \
+    depyf==0.20.0 \
+    watchfiles \
+    python-json-logger \
+    ijson \
+    model-hosting-container-standards==0.1.15 \
+    mcp \
+    opentelemetry-semantic-conventions-ai==0.5.1 \
+    mistral_common \
+    pydantic-extra-types \
+    httpx-sse \
+    pydantic-settings \
+    pyjwt \
+    sse-starlette \
+    jmespath \
+    supervisor \
+    astor
+
+COPY vllm /opt/vllm-ps/vllm
+
+RUN cd /opt/vllm-ps/vllm && \
+    MAX_JOBS=${MAX_JOBS} NVCC_THREADS=${NVCC_THREADS} \
+    CMAKE_BUILD_TYPE=Release TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST} \
+    VLLM_TARGET_DEVICE=cuda VLLM_VERSION_OVERRIDE=0.17.0+psmc \
+    python3 setup.py build_ext --inplace && \
+    VLLM_USE_PRECOMPILED=1 VLLM_VERSION_OVERRIDE=0.17.0+psmc \
+    python3 -m pip install --no-cache-dir --no-deps -e .

@@ -1856,7 +1856,13 @@ class Scheduler(SchedulerInterface):
             return None
         if power_smc_logprobs is None:
             raise RuntimeError(
-                "Power-SMC scheduler output is missing base/proposal logprobs.")
+                "Power-SMC scheduler output is missing base/proposal logprobs "
+                f"for request_id={request.request_id!r}, "
+                f"new_token_ids={new_token_ids!r}, "
+                f"is_prefill_chunk={request.is_prefill_chunk}, "
+                f"num_computed_tokens={request.num_computed_tokens}, "
+                f"num_prompt_tokens={request.num_prompt_tokens}, "
+                f"num_output_tokens={request.num_output_tokens}.")
         if len(new_token_ids) != 1:
             raise RuntimeError(
                 "Power-SMC V1 currently supports one sampled token per "
@@ -2046,17 +2052,19 @@ class Scheduler(SchedulerInterface):
                 kv_cache_manager.free(request)
             encoder_cache_manager.free(request)
             inflight_prefills.discard(request)
+            async_tokens_to_discard = request.num_output_placeholders
             request.reset_output_token_ids(token_ids)
             request.num_computed_tokens = aliased_computed_tokens
             replay_tokens += max(request.num_tokens - aliased_computed_tokens, 0)
             request.num_output_placeholders = 0
-            request.async_tokens_to_discard = 0
+            request.async_tokens_to_discard = async_tokens_to_discard
             request.spec_token_ids = []
             request.is_prefill_chunk = False
             request.status = RequestStatus.PREEMPTED
             resampled.append(request)
 
         if resampled:
+            self.prev_step_scheduled_req_ids.clear()
             kv_event["child_count"] = child_count
             kv_event["alias_attempt_count"] = alias_attempt_count
             kv_event["alias_success_count"] = alias_success_count

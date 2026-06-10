@@ -121,9 +121,9 @@ class PowerSMCConfig:
             )
 
     def _validate_self(self) -> None:
-        if self.alpha < 1.0:
+        if self.alpha <= 0.0:
             raise VLLMValidationError(
-                "Power-SMC alpha must be >= 1.",
+                "Power-SMC alpha must be > 0.",
                 parameter="extra_args.power_smc.alpha",
                 value=self.alpha,
             )
@@ -323,8 +323,6 @@ def validate_power_smc_engine_features(
     unsupported: list[str] = []
     if stream_input:
         unsupported.append("streaming input")
-    if lora_request is not None:
-        unsupported.append("LoRA")
     if is_encoder_decoder:
         unsupported.append("encoder-decoder models")
     if speculative_config is not None:
@@ -336,7 +334,7 @@ def validate_power_smc_engine_features(
     if unsupported:
         raise VLLMValidationError(
             "Power-SMC V1 currently supports only non-streaming decoder-only "
-            "requests without LoRA or speculative decoding. Unsupported: "
+            "requests without speculative decoding. Unsupported: "
             + ", ".join(unsupported),
             parameter="extra_args.power_smc",
             value=config_dict(config),
